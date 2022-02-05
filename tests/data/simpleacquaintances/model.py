@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import csv
 import os
 
 import crli
@@ -9,17 +10,40 @@ import crli.relation
 THIS_DIR = os.path.abspath(os.path.dirname(__file__))
 DEFAULT_DATA_DIR = os.path.join(THIS_DIR, 'data')
 
-def run(data_dir = DEFAULT_DATA_DIR):
+DELIMITER = "\t"
+
+def _read_file(path):
+    rows = []
+    with open(path, 'r') as file:
+        for row in csv.reader(file, delimiter = DELIMITER):
+            rows.append(row)
+    return rows
+
+def _load_data_from_files(data_dir, lived, likes, knows):
+    lived.add_data(data_type = 'observed', path = os.path.join(data_dir, 'lived_obs.txt'))
+    likes.add_data(data_type = 'observed', path = os.path.join(data_dir, 'likes_obs.txt'))
+
+    knows.add_data(data_type = 'observed', path = os.path.join(data_dir, 'knows_obs.txt'))
+    knows.add_data(data_type = 'unobserved', path = os.path.join(data_dir, 'knows_targets.txt'))
+    knows.add_data(data_type = 'truth', path = os.path.join(data_dir, 'knows_truth.txt'))
+
+def _load_data_from_lists(data_dir, lived, likes, knows):
+    lived.add_data(data_type = 'observed', data = _read_file(os.path.join(data_dir, 'lived_obs.txt')))
+    likes.add_data(data_type = 'observed', data = _read_file(os.path.join(data_dir, 'likes_obs.txt')))
+
+    knows.add_data(data_type = 'observed', data = _read_file(os.path.join(data_dir, 'knows_obs.txt')))
+    knows.add_data(data_type = 'unobserved', data = _read_file(os.path.join(data_dir, 'knows_targets.txt')))
+    knows.add_data(data_type = 'truth', data = _read_file(os.path.join(data_dir, 'knows_truth.txt')))
+
+def run(data_dir = DEFAULT_DATA_DIR, load_data_files = True):
     lived = crli.relation.Relation('lived', arity = 2)
     likes = crli.relation.Relation('likes', arity = 2)
     knows = crli.relation.Relation('knows', arity = 2)
 
-    lived.add_data(type = 'observed', path = os.path.join(data_dir, 'lived_obs.txt'))
-    likes.add_data(type = 'observed', path = os.path.join(data_dir, 'likes_obs.txt'))
-
-    knows.add_data(type = 'observed', path = os.path.join(data_dir, 'knows_obs.txt'))
-    knows.add_data(type = 'unobserved', path = os.path.join(data_dir, 'knows_targets.txt'))
-    knows.add_data(type = 'truth', path = os.path.join(data_dir, 'knows_truth.txt'))
+    if (load_data_files):
+        _load_data_from_files(data_dir, lived, likes, knows)
+    else:
+        _load_data_from_lists(data_dir, lived, likes, knows)
 
     rules = [
         'Lived(P1, L) & Lived(P2, L) & (P1 != P2) -> Knows(P1, P2)',
