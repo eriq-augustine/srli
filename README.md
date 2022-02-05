@@ -1,4 +1,4 @@
-CRF - Common Relational Framework
+CRLI - Common Relational Learning Interface
 ===
 
-CRF is a common interface for different Statistical Relational Learning (SRL) algorithms and frameworks.
+A common interface for different Statistical Relational Learning (SRL) algorithms and frameworks.
