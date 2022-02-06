@@ -35,10 +35,10 @@ def _load_data_from_lists(data_dir, lived, likes, knows):
     knows.add_data(data_type = 'unobserved', data = _read_file(os.path.join(data_dir, 'knows_targets.txt')))
     knows.add_data(data_type = 'truth', data = _read_file(os.path.join(data_dir, 'knows_truth.txt')))
 
-def run(data_dir = DEFAULT_DATA_DIR, load_data_files = True):
-    lived = crli.relation.Relation('lived', arity = 2)
-    likes = crli.relation.Relation('likes', arity = 2)
-    knows = crli.relation.Relation('knows', arity = 2)
+def run(data_dir = DEFAULT_DATA_DIR, load_data_files = True, use_psl = True):
+    lived = crli.relation.Relation('Lived', arity = 2, variable_types = ['Person', 'Location'])
+    likes = crli.relation.Relation('Likes', arity = 2, variable_types = ['Person', 'Thing'])
+    knows = crli.relation.Relation('Knows', arity = 2, variable_types = ['Person', 'Person'])
 
     if (load_data_files):
         _load_data_from_files(data_dir, lived, likes, knows)
@@ -57,7 +57,12 @@ def run(data_dir = DEFAULT_DATA_DIR, load_data_files = True):
     weights = [20.0, 5.0, 10.0, 5.0, None, 5.0]
     squared = [True, True, True, True, None, True]
 
-    engine = crli.inference.PSL(
+    if (use_psl):
+        engine_type = crli.inference.PSL
+    else:
+        engine_type = crli.inference.MLN
+
+    engine = engine_type(
             relations = [lived, likes, knows],
             rules = rules,
             # PSL-specific.

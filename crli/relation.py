@@ -8,9 +8,11 @@ class Relation(object):
         TRUTH = 'truth'
 
     # TODO(eriq): Allow more ways of specifying arguments.
-    def __init__(self, name, arity = None):
+    # TODO(eriq): Types are mainly ignored right now.
+    def __init__(self, name, arity = None, variable_types = None):
         self._name = name
         self._arity = arity
+        self._variable_types = variable_types
 
         # {dataType: data, ...}
         self._data = {}
@@ -21,6 +23,9 @@ class Relation(object):
 
     def arity(self):
         return self._arity
+
+    def variable_types(self):
+        return self._variable_types
 
     def name(self):
         return self._name

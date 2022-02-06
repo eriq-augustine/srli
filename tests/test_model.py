@@ -10,7 +10,7 @@ class TestModel(tests.base.BaseTest):
         self.assertEquals(len(results), 1)
 
         relation, data = list(results.items())[0]
-        self.assertEquals(relation.name(), 'KNOWS')
+        self.assertEquals(relation.name(), 'Knows')
         self.assertEquals(len(data), 52)
 
     def test_simple_acquaintances_list(self):
@@ -19,5 +19,14 @@ class TestModel(tests.base.BaseTest):
         self.assertEquals(len(results), 1)
 
         relation, data = list(results.items())[0]
-        self.assertEquals(relation.name(), 'KNOWS')
+        self.assertEquals(relation.name(), 'Knows')
+        self.assertEquals(len(data), 52)
+
+    def test_simple_acquaintances_mln(self):
+        results = tests.data.simpleacquaintances.model.run(use_psl = False)
+
+        self.assertEquals(len(results), 1)
+
+        relation, data = list(results.items())[0]
+        self.assertEquals(relation.name(), 'Knows')
         self.assertEquals(len(data), 52)

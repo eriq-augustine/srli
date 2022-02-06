@@ -6,7 +6,7 @@ import pslpython.predicate
 import pslpython.rule
 
 class PSL(object):
-    def __init__(self, relations, rules, weights = None, squared = None):
+    def __init__(self, relations, rules, weights = None, squared = None, **kwargs):
         self._relations = relations
         self._rules = rules
 
@@ -20,7 +20,7 @@ class PSL(object):
         else:
             self._squared = [True] * len(self._rules)
 
-    def solve(self, additional_config = None):
+    def solve(self, additional_config = None, **kwargs):
         model = pslpython.model.Model(str(uuid.uuid4()))
 
         for relation in self._relations:
@@ -49,6 +49,12 @@ class PSL(object):
 
         results = {}
         for (predicate, data) in raw_results.items():
-            results[predicate] = data.to_numpy().tolist()
+            results[self._find_relation(predicate.name())] = data.to_numpy().tolist()
 
         return results
+
+    def _find_relation(self, name):
+        for relation in self._relations:
+            if (relation.name().lower() == name.lower()):
+                return relation
+        return None
