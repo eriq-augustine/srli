@@ -9,9 +9,9 @@ PROGRAM_FILENAME = 'prog.mln'
 QUERY_FILENAME = 'query.db'
 OUTPUT_FILENAME = 'out.txt'
 
-# HACK(eriq): This is only meant for a one machine demo.
-TUFFY_JAR_PATH = '/home/eriq/code/tuffy/binary/tuffy.jar'
-TUFFY_CONFIG_PATH = '/home/eriq/code/tuffy/tuffy.conf'
+# HACK(eriq): This is meant to be replaced with a native implementation.
+TUFFY_JAR_PATH = os.path.join(os.getenv('TUFFY_HOME', 'tuffy'), 'binary', 'tuffy.jar')
+TUFFY_CONFIG_PATH = os.path.join(os.getenv('TUFFY_HOME', 'tuffy'), 'tuffy.conf')
 
 class MLN(object):
     def __init__(self, relations, rules, weights = None, **kwargs):
