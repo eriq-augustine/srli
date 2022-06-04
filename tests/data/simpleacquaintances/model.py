@@ -3,9 +3,9 @@
 import csv
 import os
 
-import crli
-import crli.inference
-import crli.relation
+import srli
+import srli.inference
+import srli.relation
 
 THIS_DIR = os.path.abspath(os.path.dirname(__file__))
 DEFAULT_DATA_DIR = os.path.join(THIS_DIR, 'data')
@@ -36,9 +36,9 @@ def _load_data_from_lists(data_dir, lived, likes, knows):
     knows.add_data(data_type = 'truth', data = _read_file(os.path.join(data_dir, 'knows_truth.txt')))
 
 def run(data_dir = DEFAULT_DATA_DIR, load_data_files = True, use_psl = True):
-    lived = crli.relation.Relation('Lived', arity = 2, variable_types = ['Person', 'Location'])
-    likes = crli.relation.Relation('Likes', arity = 2, variable_types = ['Person', 'Thing'])
-    knows = crli.relation.Relation('Knows', arity = 2, variable_types = ['Person', 'Person'])
+    lived = srli.relation.Relation('Lived', arity = 2, variable_types = ['Person', 'Location'])
+    likes = srli.relation.Relation('Likes', arity = 2, variable_types = ['Person', 'Thing'])
+    knows = srli.relation.Relation('Knows', arity = 2, variable_types = ['Person', 'Person'])
 
     if (load_data_files):
         _load_data_from_files(data_dir, lived, likes, knows)
@@ -58,9 +58,9 @@ def run(data_dir = DEFAULT_DATA_DIR, load_data_files = True, use_psl = True):
     squared = [True, True, True, True, None, True]
 
     if (use_psl):
-        engine_type = crli.inference.PSL
+        engine_type = srli.inference.PSL
     else:
-        engine_type = crli.inference.MLN
+        engine_type = srli.inference.MLN
 
     engine = engine_type(
             relations = [lived, likes, knows],
