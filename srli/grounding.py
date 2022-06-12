@@ -13,24 +13,15 @@ def ground(relations, rules):
     rules = _convert_rules(rules)
     relationNames, relationArities = _convert_relations(relations)
 
-    # {relationName: [[arg1, ...], ...], ...}
-    observed_data = jpype.java.util.HashMap()
-    unobserved_data = jpype.java.util.HashMap()
+    # [relationIndex][row][arg]
+    observed_data = []
+    unobserved_data = []
 
     for relation in relations:
-        if (relation.has_observed_data()):
-            data = jpype.java.util.ArrayList()
-            for row in relation.get_observed_data():
-                data.add(jpype.java.util.ArrayList(row))
-            observed_data[relation.name()] = data
+        observed_data.append(relation.get_observed_data())
+        unobserved_data.append(relation.get_unobserved_data())
 
-        if (relation.has_unobserved_data()):
-            data = jpype.java.util.ArrayList()
-            for row in relation.get_unobserved_data():
-                data.add(jpype.java.util.ArrayList(row))
-            unobserved_data[relation.name()] = data
-
-    groundrules = grounding_api.ground(relationNames, relationArities, rules, observed_data, unobserved_data)
+    groundrules = grounding_api.ground(rules, relationNames, relationArities, observed_data, unobserved_data)
 
     # TEST
     print('TEST 5 - ', len(groundrules))
@@ -41,18 +32,18 @@ def ground(relations, rules):
     return None
 
 def _convert_relations(relations):
-    relationNames = jpype.java.util.ArrayList()
-    relationArities = jpype.java.util.ArrayList()
+    relationNames = []
+    relationArities = []
 
     for relation in relations:
-        relationNames.add(relation.name())
-        relationArities.add(jpype.java.lang.Integer(relation.arity()))
+        relationNames.append(relation.name())
+        relationArities.append(relation.arity())
 
     return relationNames, relationArities
 
 # Convert rules into something PSL understands.
 def _convert_rules(rules):
-    return jpype.java.util.ArrayList([rule + ' .' for rule in rules])
+    return [rule + ' .' for rule in rules]
 
 def _init():
     jpype.startJVM(classpath = [CLASSPATH])
