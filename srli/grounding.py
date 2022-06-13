@@ -21,15 +21,7 @@ def ground(relations, rules):
         observed_data.append(relation.get_observed_data())
         unobserved_data.append(relation.get_unobserved_data())
 
-    groundrules = grounding_api.ground(rules, relationNames, relationArities, observed_data, unobserved_data)
-
-    # TEST
-    print('TEST 5 - ', len(groundrules))
-    for groundrule in groundrules:
-        print(groundrule)
-
-    # TEST
-    return None
+    return grounding_api.ground(rules, relationNames, relationArities, observed_data, unobserved_data)
 
 def _convert_relations(relations):
     relationNames = []

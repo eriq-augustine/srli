@@ -60,7 +60,7 @@ def run(data_dir = DEFAULT_DATA_DIR, load_data_files = True, use_psl = True):
     if (use_psl):
         engine_type = srli.inference.PSL
     else:
-        engine_type = srli.inference.MLN
+        engine_type = srli.inference.Tuffy
 
     engine = engine_type(
             relations = [lived, likes, knows],

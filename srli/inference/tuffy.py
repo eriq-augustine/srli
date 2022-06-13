@@ -13,7 +13,7 @@ OUTPUT_FILENAME = 'out.txt'
 TUFFY_JAR_PATH = os.path.join(os.getenv('TUFFY_HOME', 'tuffy'), 'binary', 'tuffy.jar')
 TUFFY_CONFIG_PATH = os.path.join(os.getenv('TUFFY_HOME', 'tuffy'), 'tuffy.conf')
 
-class MLN(object):
+class Tuffy(object):
     def __init__(self, relations, rules, weights = None, **kwargs):
         self._relations = relations
         self._rules = rules
