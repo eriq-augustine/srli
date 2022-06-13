@@ -35,7 +35,7 @@ def _load_data_from_lists(data_dir, lived, likes, knows):
     knows.add_data(data_type = 'unobserved', data = _read_file(os.path.join(data_dir, 'knows_targets.txt')))
     knows.add_data(data_type = 'truth', data = _read_file(os.path.join(data_dir, 'knows_truth.txt')))
 
-def run(data_dir = DEFAULT_DATA_DIR, load_data_files = True, use_psl = True):
+def run(data_dir = DEFAULT_DATA_DIR, engine_type = srli.inference.PSL, load_data_files = True):
     lived = srli.relation.Relation('Lived', arity = 2, variable_types = ['Person', 'Location'])
     likes = srli.relation.Relation('Likes', arity = 2, variable_types = ['Person', 'Thing'])
     knows = srli.relation.Relation('Knows', arity = 2, variable_types = ['Person', 'Person'])
@@ -57,11 +57,6 @@ def run(data_dir = DEFAULT_DATA_DIR, load_data_files = True, use_psl = True):
     weights = [20.0, 5.0, 10.0, 5.0, None, 5.0]
     squared = [True, True, True, True, None, True]
 
-    if (use_psl):
-        engine_type = srli.inference.PSL
-    else:
-        engine_type = srli.inference.Tuffy
-
     engine = engine_type(
             relations = [lived, likes, knows],
             rules = rules,
@@ -72,6 +67,13 @@ def run(data_dir = DEFAULT_DATA_DIR, load_data_files = True, use_psl = True):
     results = engine.solve()
 
     return results
+
+def expected_results():
+    return {
+        'Knows': {
+            'size': 52
+        }
+    }
 
 if (__name__ == '__main__'):
     results = run()

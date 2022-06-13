@@ -5,6 +5,8 @@ import pslpython.partition
 import pslpython.predicate
 import pslpython.rule
 
+import srli.grounding
+
 class PSL(object):
     def __init__(self, relations, rules, weights = None, squared = None, **kwargs):
         self._relations = relations
