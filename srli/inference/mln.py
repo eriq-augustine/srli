@@ -4,13 +4,14 @@ import srli.grounding
 
 DEFAULT_NOISE = 0.05
 LOG_MOD = 50
+FLIP_MULTIPLIER = 15
 
 HARD_WEIGHT = 1000.0
 
 class MLN(object):
     """
     A basic implementation of MLNs with inference using MaxWalkSat.
-    If unspecified, the number of flips defaults to 10x the number of unobserved atoms (similar to Tuffy).
+    If unspecified, the number of flips defaults to FLIP_MULTIPLIERx the number of unobserved atoms (similar to Tuffy).
     """
 
     def __init__(self, relations, rules, weights = None, **kwargs):
@@ -35,7 +36,7 @@ class MLN(object):
             atom_values[atom_index] = rng.randint(0, 1)
 
         if (max_flips is None):
-            max_flips = 10 * len(atom_values)
+            max_flips = FLIP_MULTIPLIER * len(atom_values)
 
         total_loss = 0.0
         for ground_rule in ground_rules:
@@ -53,18 +54,12 @@ class MLN(object):
             while (ground_rule_index is None or ground_rules[ground_rule_index].loss(atom_values) == 0.0):
                 ground_rule_index = rng.randint(0, len(ground_rules) - 1)
 
-            # TEST
-            # print("Flip: " + str(ground_rules[ground_rule_index]) + ' - ' + str(ground_rules[ground_rule_index].loss(atom_values)))
-
             # Flip a coin.
             # On heads, flip a random atom in the ground rule.
             # On tails, flip the atom that leads to the most satisfaction.
             if (rng.random() < noise):
                 flip_atom_index = rng.choice(ground_rules[ground_rule_index].atoms)
                 atom_values[flip_atom_index] = 1.0 - atom_values[flip_atom_index]
-
-                # TEST
-                # print("Random Flip: " + str(flip_atom_index))
             else:
                 flip_atom_index = None
                 flip_atom_loss = None
@@ -81,35 +76,12 @@ class MLN(object):
                         new_atom_loss += ground_rules[ground_rule_index].loss(atom_values)
                     atom_values[atom_index] = 1.0 - atom_values[atom_index]
 
-                    # TEST
-                    # print('   ' + str(atom_index) + ' - ' + str(old_atom_loss) + ' -> ' + str(new_atom_loss))
-
                     flip_delta = old_atom_loss - new_atom_loss
                     if (flip_atom_index is None or flip_delta > flip_atom_loss):
                         flip_atom_loss = flip_delta
                         flip_atom_index = atom_index
 
-                # TEST
-                '''
-                test_pre_loss = 0.0
-                for ground_rule in ground_rules:
-                    test_pre_loss += ground_rule.loss(atom_values)
-                print("TEST Pre-flip: " + str(test_pre_loss))
-                '''
-
                 atom_values[flip_atom_index] = 1.0 - atom_values[flip_atom_index]
-
-                # TEST
-                '''
-                test_post_loss = 0.0
-                for ground_rule in ground_rules:
-                    test_post_loss += ground_rule.loss(atom_values)
-                print("TEST Post-loss: " + str(test_post_loss))
-                print("TEST Loss Delta: " + str(test_pre_loss - test_post_loss))
-                '''
-
-                # TEST
-                # print("Loss-based Flip: " + str(flip_atom_index) + ' - ' + str(flip_atom_loss))
 
             total_loss = 0.0
             for ground_rule in ground_rules:
@@ -137,9 +109,6 @@ class MLN(object):
                 next_index += 1
 
             results[relation] = values
-
-        # TEST
-        # print(results)
 
         return results
 
@@ -189,14 +158,6 @@ class MLN(object):
                 continue
 
             ground_rule = GroundRule(weight, atoms, coefficients, constant, raw_ground_rule.operator)
-
-            # TEST
-            '''
-            print('--- a ---')
-            print(raw_ground_rule)
-            print(ground_rule)
-            print('--- a ---')
-            '''
 
             ground_rule_index = len(ground_rules)
             ground_rules.append(ground_rule)
@@ -255,12 +216,6 @@ class GroundRule(object):
             loss = self._loss_logical(atom_values)
         else:
             loss = self._loss_arithmetic(atom_values)
-
-        # TEST
-        '''
-        values = ", ".join(map(str, [atom_values[atom] for atom in self.atoms]))
-        print("Sat [%s](%s) = %f * %f = %f" % (str(self), values, self.weight, loss, self.weight * loss))
-        '''
 
         return self.weight * loss
 
