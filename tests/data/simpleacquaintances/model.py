@@ -3,6 +3,8 @@
 import csv
 import os
 
+import sklearn.metrics
+
 import srli
 import srli.inference
 import srli.relation
@@ -11,6 +13,7 @@ THIS_DIR = os.path.abspath(os.path.dirname(__file__))
 DEFAULT_DATA_DIR = os.path.join(THIS_DIR, 'data')
 
 DELIMITER = "\t"
+TRUTH_THRESHOLD = 0.5
 
 def _read_file(path):
     rows = []
@@ -66,12 +69,23 @@ def run(data_dir = DEFAULT_DATA_DIR, engine_type = srli.inference.PSL, load_data
 
     results = engine.solve()
 
-    return results
+    # Order results/truth to match.
+    truth = list(sorted([list(map(float, row)) for row in knows.get_truth_data()]))
+    unobserved = list(sorted([list(map(float, row)) for row in results[knows]]))
+
+    expected = [int(row[-1] >= TRUTH_THRESHOLD) for row in sorted(truth)]
+    predicted = [int(row[-1] >= TRUTH_THRESHOLD) for row in sorted(unobserved)]
+
+    assert len(expected) == len(predicted), ("%d vs %d" % (len(expected), len(predicted)))
+
+    f1 = sklearn.metrics.f1_score(expected, predicted)
+
+    return results, [f1]
 
 def expected_results():
     return {
         'Knows': {
-            'size': 52
+            'size': 118
         }
     }
 

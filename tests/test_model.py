@@ -14,13 +14,17 @@ class TestModel(tests.base.BaseTest):
 def _make_model_test(model, engine, additional_args = {}):
     def __test_method(self):
         expected_results = model.expected_results()
-        results = model.run(engine_type = engine, **additional_args)
+        results, metrics = model.run(engine_type = engine, **additional_args)
+
+        print("F1:", metrics[0])
 
         self.assertEquals(len(results), len(expected_results))
 
         for (relation, data) in results.items():
             self.assertIn(relation.name(), expected_results)
             self.assertEquals(len(data), expected_results[relation.name()]['size'])
+
+        self.assertTrue(metrics[0] > 0.51, "F1 score (%f) not beating random (0.50) by enough." % (metrics[0]))
 
     return __test_method
 
