@@ -2,12 +2,17 @@ import random
 
 import srli.grounding
 
-DEFAULT_MAX_FLIPS = 50000
-DEFAULT_NOISE = 0.1
+DEFAULT_NOISE = 0.05
+LOG_MOD = 50
 
 HARD_WEIGHT = 1000.0
 
 class MLN(object):
+    """
+    A basic implementation of MLNs with inference using MaxWalkSat.
+    If unspecified, the number of flips defaults to 10x the number of unobserved atoms (similar to Tuffy).
+    """
+
     def __init__(self, relations, rules, weights = None, **kwargs):
         self._relations = relations
         self._rules = rules
@@ -17,57 +22,126 @@ class MLN(object):
         else:
             self._weights = [1.0] * len(self._rules)
 
-    def solve(self, max_flips = DEFAULT_MAX_FLIPS, noise = DEFAULT_NOISE, seed = None, **kwargs):
+    def solve(self, max_flips = None, noise = DEFAULT_NOISE, seed = None, **kwargs):
         if (seed is None):
             seed = random.randint(0, 2**31)
-        random.seed(seed)
+        rng = random.Random(seed)
 
         raw_ground_rules = srli.grounding.ground(self._relations, self._rules)
         ground_rules, atom_grounding_map = self._process_ground_rules(raw_ground_rules)
 
         atom_values = {}
-        atom_losses = {}
         for atom_index in atom_grounding_map:
-            atom_values[atom_index] = random.randint(0, 1)
-            atom_losses[atom_index] = 0.0
+            atom_values[atom_index] = rng.randint(0, 1)
 
-        for flip in range(max_flips):
-            # Reset
-            for atom_index in atom_grounding_map:
-                atom_losses[atom_index] = 0.0
+        if (max_flips is None):
+            max_flips = 10 * len(atom_values)
 
-            # Compute losses.
-            total_loss = 0.0
-            for ground_rule in ground_rules:
-                loss = ground_rule.loss(atom_values)
+        total_loss = 0.0
+        for ground_rule in ground_rules:
+            total_loss += ground_rule.loss(atom_values)
 
-                total_loss += loss
-                for atom_index in ground_rule.atoms:
-                    atom_losses[atom_index] += loss
+        print("MLN Iteration 0, Loss: %f, Max Flips: %d." % (total_loss, max_flips))
 
-            # Pick a random ground rule.
-            ground_rule_index = random.randint(0, len(ground_rules) - 1)
+        for flip in range(1, max_flips + 1):
+            if (total_loss == 0.0):
+                print("Full satisfaction found.")
+                break
+
+            # Pick a random unsatisfied ground rule.
+            ground_rule_index = None
+            while (ground_rule_index is None or ground_rules[ground_rule_index].loss(atom_values) == 0.0):
+                ground_rule_index = rng.randint(0, len(ground_rules) - 1)
+
+            # TEST
+            # print("Flip: " + str(ground_rules[ground_rule_index]) + ' - ' + str(ground_rules[ground_rule_index].loss(atom_values)))
 
             # Flip a coin.
             # On heads, flip a random atom in the ground rule.
-            # On tails, flip the most dissatisfied atom in the ground rule.
-            if (random.random() < noise):
-                flip_atom_index = random.choice(ground_rules[ground_rule_index].atoms)
+            # On tails, flip the atom that leads to the most satisfaction.
+            if (rng.random() < noise):
+                flip_atom_index = rng.choice(ground_rules[ground_rule_index].atoms)
                 atom_values[flip_atom_index] = 1.0 - atom_values[flip_atom_index]
+
+                # TEST
+                # print("Random Flip: " + str(flip_atom_index))
             else:
                 flip_atom_index = None
+                flip_atom_loss = None
+
+                # Compute the possible loss for flipping each atom.
                 for atom_index in ground_rules[ground_rule_index].atoms:
-                    if (flip_atom_index is None or atom_losses[atom_index] > atom_losses[flip_atom_index]):
+                    old_atom_loss = 0.0
+                    for ground_rule_index in atom_grounding_map[atom_index]: 
+                        old_atom_loss += ground_rules[ground_rule_index].loss(atom_values)
+
+                    new_atom_loss = 0.0
+                    atom_values[atom_index] = 1.0 - atom_values[atom_index]
+                    for ground_rule_index in atom_grounding_map[atom_index]: 
+                        new_atom_loss += ground_rules[ground_rule_index].loss(atom_values)
+                    atom_values[atom_index] = 1.0 - atom_values[atom_index]
+
+                    # TEST
+                    # print('   ' + str(atom_index) + ' - ' + str(old_atom_loss) + ' -> ' + str(new_atom_loss))
+
+                    flip_delta = old_atom_loss - new_atom_loss
+                    if (flip_atom_index is None or flip_delta > flip_atom_loss):
+                        flip_atom_loss = flip_delta
                         flip_atom_index = atom_index
+
+                # TEST
+                '''
+                test_pre_loss = 0.0
+                for ground_rule in ground_rules:
+                    test_pre_loss += ground_rule.loss(atom_values)
+                print("TEST Pre-flip: " + str(test_pre_loss))
+                '''
 
                 atom_values[flip_atom_index] = 1.0 - atom_values[flip_atom_index]
 
-            # TEST
-            print("MLN Iteration %d, Loss: %f." % (flip, total_loss))
+                # TEST
+                '''
+                test_post_loss = 0.0
+                for ground_rule in ground_rules:
+                    test_post_loss += ground_rule.loss(atom_values)
+                print("TEST Post-loss: " + str(test_post_loss))
+                print("TEST Loss Delta: " + str(test_pre_loss - test_post_loss))
+                '''
 
+                # TEST
+                # print("Loss-based Flip: " + str(flip_atom_index) + ' - ' + str(flip_atom_loss))
+
+            total_loss = 0.0
+            for ground_rule in ground_rules:
+                total_loss += ground_rule.loss(atom_values)
+
+            if (flip % LOG_MOD == 0):
+                print("MLN Iteration %d, Loss: %f." % (flip, total_loss))
+
+        print("MLN Inference Complete. Iteration %d, Loss: %f." % (flip, total_loss))
+
+        results = {}
+        next_index = 0
+        for relation in self._relations:
+            next_index += len(relation.get_observed_data())
+
+            if (not relation.has_unobserved_data()):
+                continue
+
+            data = relation.get_unobserved_data()
+
+            values = []
+            for i in range(len(data)):
+                atom = data[i][0:relation.arity()] + [atom_values[next_index]]
+                values.append(atom)
+                next_index += 1
+
+            results[relation] = values
 
         # TEST
-        return {}
+        # print(results)
+
+        return results
 
     def _process_ground_rules(self, raw_ground_rules):
         """
@@ -87,6 +161,7 @@ class MLN(object):
             if (weight is None):
                 weight = HARD_WEIGHT
 
+            skip = False
             atoms = []
             coefficients = []
             constant = raw_ground_rule.constant
@@ -94,14 +169,34 @@ class MLN(object):
             for i in range(len(raw_ground_rule.atoms)):
                 observed, value = self._fetch_atom(relation_counts, raw_ground_rule.atoms[i])
 
+                # TODO(eriq): Find and skip trivial ground rules (depends on rule/evaluation type.
+
                 if (observed):
-                    value *= raw_ground_rule.coefficients[i]
-                    constant -= value
+                    coefficient = raw_ground_rule.coefficients[i]
+
+                    if (raw_ground_rule.operator == '|'):
+                        # Skip trivials.
+                        if ((coefficient == 1.0 and value == 0.0) or (coefficient == -1.0 and value == 1.0)):
+                            skip = True
+                            break
+
+                    constant -= (coefficient * value)
                 else:
                     atoms.append(raw_ground_rule.atoms[i])
                     coefficients.append(raw_ground_rule.coefficients[i])
 
+            if (skip):
+                continue
+
             ground_rule = GroundRule(weight, atoms, coefficients, constant, raw_ground_rule.operator)
+
+            # TEST
+            '''
+            print('--- a ---')
+            print(raw_ground_rule)
+            print(ground_rule)
+            print('--- a ---')
+            '''
 
             ground_rule_index = len(ground_rules)
             ground_rules.append(ground_rule)
@@ -128,7 +223,7 @@ class MLN(object):
 
             value = 1.0
             if (len(atom_data) == relation.arity() + 1):
-                value = float(atom_data[-1])
+                value = int(float(atom_data[-1]) > 0.0)
 
             return True, value
 
@@ -140,7 +235,7 @@ class MLN(object):
 
         value = None
         if (len(atom_data) == relation.arity() + 1):
-            value = float(atom_data[-1])
+            value = int(float(atom_data[-1]) > 0.0)
 
         return False, value
 
@@ -152,17 +247,45 @@ class GroundRule(object):
         self.constant = constant
         self.operator = operator
 
+        # TODO(eriq): Standardize and support logical and arithmetic rules.
+        assert operator in ['|', '='], "Unsupported rule operator: '%s'." % (operator)
+
     def loss(self, atom_values):
-        value = 0.0
+        if (self.operator == '|'):
+            loss = self._loss_logical(atom_values)
+        else:
+            loss = self._loss_arithmetic(atom_values)
 
         # TEST
-        # assert self.operator == '|', self.operator
+        '''
+        values = ", ".join(map(str, [atom_values[atom] for atom in self.atoms]))
+        print("Sat [%s](%s) = %f * %f = %f" % (str(self), values, self.weight, loss, self.weight * loss))
+        '''
+
+        return self.weight * loss
+
+    def _loss_logical(self, atom_values):
+        loss = 0.0
 
         for i in range(len(self.atoms)):
             truth_value = atom_values[self.atoms[i]]
-            if (self.coefficients[i] < 1.0):
-                truth_value = 1.0 - truth_value
+            # Matching the coefficient does not incur loss.
+            if ((self.coefficients[i] == 1.0 and truth_value == 0.0) or (self.coefficients[i] == -1.0 and truth_value == 1.0)):
+                loss = 1.0
+                break
 
-            value = min(1.0, value + truth_value)
+        return loss
 
-        return self.weight * (1.0 - value)
+    def _loss_arithmetic(self, atom_values):
+        sum = 0.0
+
+        for i in range(len(self.atoms)):
+            sum += self.coefficients[i] * atom_values[self.atoms[i]]
+
+        if (sum == self.constant):
+            return 0.0
+
+        return 1.0
+
+    def __repr__(self):
+        return "Weight: %f, Operator: %s, Constant: %f, Coefficients: [%s], Atoms: [%s]." % (self.weight, self.operator, self.constant, ', '.join(map(str, self.coefficients)), ', '.join(map(str, self.atoms)))

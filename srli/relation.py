@@ -75,3 +75,6 @@ class Relation(object):
                 count += 1
 
         return count
+
+    def __repr__(self):
+        return "%s/%d" % (self._name, self._arity)
