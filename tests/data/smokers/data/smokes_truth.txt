@@ -1,0 +1,4 @@
+Bob	1
+Frank	1
+Gary	0
+Helen	0

@@ -14,6 +14,9 @@ class Relation(object):
         self._arity = arity
         self._variable_types = variable_types
 
+        if (self._arity is None and self._variable_types is not None):
+            self._arity = len(self._variable_types)
+
         # {dataType: data, ...}
         self._data = {}
         for data_type in Relation.DataType:

@@ -1,0 +1,6 @@
+Anna	1
+Bob	1
+Edward	1
+Frank	1
+Gary	0
+Helen	0
