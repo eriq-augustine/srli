@@ -30,10 +30,11 @@ class SmokersModel(tests.data.base.TestModel):
             'Friends(A1, A2) & Smokes(A1) -> Smokes(A2)',
             'Friends(A1, A2) & Smokes(A2) -> Smokes(A1)',
             '!Smokes(X)',
+            '!Cancer(X)',
         ]
 
-        weights = [0.5, 0.4, 0.4, 0.1]
-        squared = [True, True, True, True]
+        weights = [0.5, 0.4, 0.4, 0.01, 0.01]
+        squared = [True, True, True, True, True]
 
         engine = engine_type(
                 relations = [friends, smokes, cancer],
@@ -45,10 +46,19 @@ class SmokersModel(tests.data.base.TestModel):
         results = engine.solve()
 
         eval_data = self.get_eval_data(results, discretize = True)
-        smokes_f1 = sklearn.metrics.f1_score(eval_data[smokes]['expected'], eval_data[smokes]['predicted'])
-        cancer_f1 = sklearn.metrics.f1_score(eval_data[cancer]['expected'], eval_data[cancer]['predicted'])
 
-        return results, {smokes: {'f1': smokes_f1}, cancer: {'f1': cancer_f1}}
+        metrics = {
+            smokes: {
+                'f1': sklearn.metrics.f1_score(eval_data[smokes]['expected'], eval_data[smokes]['predicted']),
+                'accuracy': sklearn.metrics.accuracy_score(eval_data[smokes]['expected'], eval_data[smokes]['predicted']),
+            },
+            cancer: {
+                'f1': sklearn.metrics.f1_score(eval_data[cancer]['expected'], eval_data[cancer]['predicted']),
+                'accuracy': sklearn.metrics.accuracy_score(eval_data[cancer]['expected'], eval_data[cancer]['predicted']),
+            },
+        }
+
+        return results, metrics
 
     def expected_results(self):
         return {

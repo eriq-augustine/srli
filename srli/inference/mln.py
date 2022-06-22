@@ -2,9 +2,10 @@ import random
 
 import srli.grounding
 
+DEFAULT_MAX_TRIES = 3
 DEFAULT_NOISE = 0.05
 LOG_MOD = 50
-FLIP_MULTIPLIER = 15
+FLIP_MULTIPLIER = 10
 
 HARD_WEIGHT = 1000.0
 
@@ -23,26 +24,45 @@ class MLN(object):
         else:
             self._weights = [1.0] * len(self._rules)
 
-    def solve(self, max_flips = None, noise = DEFAULT_NOISE, seed = None, **kwargs):
+    def solve(self, max_flips = None, max_tries = DEFAULT_MAX_TRIES, noise = DEFAULT_NOISE, seed = None, **kwargs):
         if (seed is None):
-            seed = random.randint(0, 2**31)
+            seed = random.randint(0, 2 ** 31)
         rng = random.Random(seed)
 
         raw_ground_rules = srli.grounding.ground(self._relations, self._rules)
         ground_rules, atom_grounding_map = self._process_ground_rules(raw_ground_rules)
 
+        if (max_flips is None):
+            max_flips = FLIP_MULTIPLIER * len(atom_grounding_map)
+
+        best_atom_values = None
+        best_total_loss = None
+        best_attempt = None
+
+        for attempt in range(1, max_tries + 1):
+            atom_values, total_loss = self._inference_attempt(attempt, max_flips, rng, noise, ground_rules, atom_grounding_map)
+            if (best_total_loss is None or total_loss < best_total_loss):
+                best_total_loss = total_loss
+                best_atom_values = atom_values
+                best_attempt = attempt
+
+            if (total_loss == 0.0):
+                break
+
+        print("MLN Inference Complete - Best Attempt: %d, Loss: %f." % (best_attempt, best_total_loss))
+
+        return self._create_results(best_atom_values)
+
+    def _inference_attempt(self, attempt, max_flips, rng, noise, ground_rules, atom_grounding_map):
         atom_values = {}
         for atom_index in atom_grounding_map:
             atom_values[atom_index] = rng.randint(0, 1)
-
-        if (max_flips is None):
-            max_flips = FLIP_MULTIPLIER * len(atom_values)
 
         total_loss = 0.0
         for ground_rule in ground_rules:
             total_loss += ground_rule.loss(atom_values)
 
-        print("MLN Iteration 0, Loss: %f, Max Flips: %d." % (total_loss, max_flips))
+        print("MLN Inference - Attempt: %d, Iteration 0, Loss: %f, Max Flips: %d." % (attempt, total_loss, max_flips))
 
         for flip in range(1, max_flips + 1):
             if (total_loss == 0.0):
@@ -67,12 +87,12 @@ class MLN(object):
                 # Compute the possible loss for flipping each atom.
                 for atom_index in ground_rules[ground_rule_index].atoms:
                     old_atom_loss = 0.0
-                    for ground_rule_index in atom_grounding_map[atom_index]: 
+                    for ground_rule_index in atom_grounding_map[atom_index]:
                         old_atom_loss += ground_rules[ground_rule_index].loss(atom_values)
 
                     new_atom_loss = 0.0
                     atom_values[atom_index] = 1.0 - atom_values[atom_index]
-                    for ground_rule_index in atom_grounding_map[atom_index]: 
+                    for ground_rule_index in atom_grounding_map[atom_index]:
                         new_atom_loss += ground_rules[ground_rule_index].loss(atom_values)
                     atom_values[atom_index] = 1.0 - atom_values[atom_index]
 
@@ -88,10 +108,13 @@ class MLN(object):
                 total_loss += ground_rule.loss(atom_values)
 
             if (flip % LOG_MOD == 0):
-                print("MLN Iteration %d, Loss: %f." % (flip, total_loss))
+                print("MLN Inference - Attempt: %d, Iteration %d, Loss: %f." % (attempt, flip, total_loss))
 
-        print("MLN Inference Complete. Iteration %d, Loss: %f." % (flip, total_loss))
+        print("MLN Inference Attempt Complete - Attempt: %d, Iteration %d, Loss: %f." % (attempt, flip, total_loss))
 
+        return atom_values, total_loss
+
+    def _create_results(self, atom_values):
         results = {}
         next_index = 0
         for relation in self._relations:
@@ -220,16 +243,15 @@ class GroundRule(object):
         return self.weight * loss
 
     def _loss_logical(self, atom_values):
-        loss = 0.0
-
         for i in range(len(self.atoms)):
             truth_value = atom_values[self.atoms[i]]
-            # Matching the coefficient does not incur loss.
-            if ((self.coefficients[i] == 1.0 and truth_value == 0.0) or (self.coefficients[i] == -1.0 and truth_value == 1.0)):
-                loss = 1.0
-                break
+            coefficient = self.coefficients[i]
 
-        return loss
+            # If any atom matches the coefficient, then no loss is incured.
+            if ((coefficient == -1.0 and truth_value == 1.0) or (coefficient == 1.0 and truth_value == 0.0)):
+                return 0.0
+
+        return 1.0
 
     def _loss_arithmetic(self, atom_values):
         sum = 0.0
