@@ -36,23 +36,29 @@ class Relation(object):
     def is_observed(self):
         return self.has_observed_data() and not self.has_unobserved_data()
 
+    def has_data(self, data_type):
+        return len(self._data[data_type]) != 0
+
     def has_observed_data(self):
-        return len(self._data[Relation.DataType.OBSERVED]) != 0
+        return self.has_data(Relation.DataType.OBSERVED)
 
     def has_unobserved_data(self):
-        return len(self._data[Relation.DataType.UNOBSERVED]) != 0
+        return self.has_data(Relation.DataType.UNOBSERVED)
 
     def has_truth_data(self):
-        return len(self._data[Relation.DataType.TRUTH]) != 0
+        return self.has_data(Relation.DataType.TRUTH)
+
+    def get_data(self, data_type):
+        return self._data[data_type]
 
     def get_observed_data(self):
-        return self._data[Relation.DataType.OBSERVED]
+        return self.get_data(Relation.DataType.OBSERVED)
 
     def get_unobserved_data(self):
-        return self._data[Relation.DataType.UNOBSERVED]
+        return self.get_data(Relation.DataType.UNOBSERVED)
 
     def get_truth_data(self):
-        return self._data[Relation.DataType.TRUTH]
+        return self.get_data(Relation.DataType.TRUTH)
 
     # TODO(eriq): So much with data loading in general.
     # TODO(eriq): Check incoming data for consistency (arity, truth values, etc).

@@ -7,7 +7,7 @@ DISJUNCTION = 'OR'
 
 KEY_OPERATION = 'operation'
 KEY_NEGATED = 'negated'
-KEY_PREDICATE = 'predicate'
+KEY_RELATION = 'relation_name'
 KEY_ARGUMENTS = 'arguments'
 
 GRAMMAR = '''
@@ -38,9 +38,9 @@ GRAMMAR = '''
                     | NOT atom_expression -> negation
                     | _LPAREN atom_expression _RPAREN
 
-    atom: predicate _LPAREN term (_COMMA term)* _RPAREN
+    atom: relation _LPAREN term (_COMMA term)* _RPAREN
 
-    ?predicate: IDENTIFIER
+    ?relation: IDENTIFIER
 
     ?term: variable
          | constant
@@ -61,6 +61,12 @@ GRAMMAR = '''
 '''
 
 class Implication(tuple):
+    def get_atoms(self, atoms = None):
+        for operand in self:
+            atoms = operand.get_atoms(atoms)
+
+        return atoms
+
     def __str__(self):
         return self.__repr__()
 
@@ -68,6 +74,12 @@ class Implication(tuple):
         return 'Implication(' + ', '.join(map(repr, self)) + ')'
 
 class Conjunction(tuple):
+    def get_atoms(self, atoms = None):
+        for operand in self:
+            atoms = operand.get_atoms(atoms)
+
+        return atoms
+
     def __str__(self):
         return self.__repr__()
 
@@ -75,6 +87,12 @@ class Conjunction(tuple):
         return 'Conjunction(' + ', '.join(map(repr, self)) + ')'
 
 class Disjunction(tuple):
+    def get_atoms(self, atoms = None):
+        for operand in self:
+            atoms = operand.get_atoms(atoms)
+
+        return atoms
+
     def __str__(self):
         return self.__repr__()
 
@@ -82,6 +100,13 @@ class Disjunction(tuple):
         return 'Disjunction(' + ', '.join(map(repr, self)) + ')'
 
 class Atom(dict):
+    def get_atoms(self, atoms = None):
+        if (atoms is None):
+            atoms = []
+
+        atoms.append(self)
+        return atoms
+
     def __str__(self):
         return self.__repr__()
 
@@ -101,7 +126,7 @@ class CleanTree(lark.Transformer):
     def atom(self, elements):
         return Atom({
             KEY_NEGATED: False,
-            KEY_PREDICATE: str(elements[0]),
+            KEY_RELATION: str(elements[0]),
             KEY_ARGUMENTS: tuple(map(str, elements[1:])),
         })
 
@@ -112,7 +137,13 @@ class CleanTree(lark.Transformer):
 
 def parse(rule):
     parser = lark.Lark(GRAMMAR, start = 'rule', parser = 'lalr')
-    ast = parser.parse(rule)
+
+    try:
+        ast = parser.parse(rule)
+    except Exception as ex:
+        print("Failed to parse rule: '%s'." % (rule))
+        raise ex
+
     cleanAST = CleanTree().transform(ast)
     return cleanAST
 

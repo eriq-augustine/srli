@@ -29,8 +29,9 @@ class SmokersModel(tests.data.base.TestModel):
             'Smokes(X) -> Cancer(X)',
             'Friends(A1, A2) & Smokes(A1) -> Smokes(A2)',
             'Friends(A1, A2) & Smokes(A2) -> Smokes(A1)',
-            '!Smokes(X)',
-            '!Cancer(X)',
+            # TEST
+            # '!Smokes(X)',
+            # '!Cancer(X)',
         ]
 
         weights = [0.5, 0.4, 0.4, 0.01, 0.01]

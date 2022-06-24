@@ -6,7 +6,8 @@ import srli.inference
 ENGINE_PSL = srli.inference.PSL
 ENGINE_TUFFY = srli.inference.Tuffy
 ENGINE_MLN = srli.inference.MLN
-ENGINES = [ENGINE_PSL, ENGINE_TUFFY, ENGINE_MLN]
+ENGINE_PL = srli.inference.ProbLog
+ENGINES = [ENGINE_PSL, ENGINE_TUFFY, ENGINE_MLN, ENGINE_PL]
 
 class BaseTest(unittest.TestCase):
     """

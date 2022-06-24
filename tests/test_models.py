@@ -9,6 +9,10 @@ TEST_MODELS = [
     tests.data.smokers.model.SmokersModel,
 ]
 
+SKIP_PAIRS = [
+    (tests.data.simpleacquaintances.model.SimpleAcquaintancesModel, tests.base.ENGINE_PL),
+]
+
 class ModelTest(tests.base.BaseTest):
     pass
 
@@ -36,6 +40,9 @@ def _make_model_test(model_class, engine, additional_args = {}):
 
 for model_class in TEST_MODELS:
     for engine in tests.base.ENGINES:
+        if ((model_class, engine) in SKIP_PAIRS):
+            continue
+
         test_name = "test_%s_%s" % (model_class.__name__, engine.__name__)
         test_method = _make_model_test(model_class, engine)
 
