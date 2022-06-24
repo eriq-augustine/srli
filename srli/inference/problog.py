@@ -4,8 +4,8 @@ import problog
 
 import srli.parser
 
-# TODO(eriq): constants vs variables?, Need a consistent way of handling them.
 # HACK(eriq): All relations and arguments are made lowercase. There is potneital for collision in case-sensitive data.
+# TODO(eriq): There is still a ton of work on when to introduce layers. As is, many programs (e.g. transitive ones) will finish.
 
 DUMMY_VALUE_SUFFIX = '__dummy__'
 
@@ -31,9 +31,7 @@ class ProbLog(object):
         self._add_unobserved_data(program)
         results = self._eval("\n".join(program))
 
-        # TEST
-        print('---')
-        print("\n".join(program))
+        # print("\n".join(program))
 
         return results
 
@@ -120,8 +118,6 @@ class ProbLog(object):
 
         return atoms, values
 
-    # TEST(eriq): When to use layers is pretty complicated and not figured out yet.
-
     def _create_rules(self, program):
         unobserved_relation_names = set()
         for relation in self._relations:
@@ -149,32 +145,36 @@ class ProbLog(object):
         # Handle lower collectivity rules first.
         collectivity_counts.sort()
 
-        # There will be single layer for all non-collective rules, and one for each collective rule.
+        # Bring in all rules at the same layer and then use priors to transition to the final layer.
 
-        current_level = 1
         for rule_index in non_collective_rules:
             program.append("% Non-collective rule: " + self._rules[rule_index])
-            program.append(self._simple_rule_rename(rule_index, unobserved_relation_names, current_level))
+            program.append(self._simple_rule_rename(rule_index, unobserved_relation_names, 1))
 
         for (_, rule_index) in collectivity_counts:
             if (len(program) > 0):
                 program.append('')
 
             program.append("% Collective rule: " + self._rules[rule_index])
-            program += self._collective_rule_rename(rule_index, unobserved_relation_names, current_level)
-            # TEST
-            # current_level += 1
+            program += self._collective_rule_rename(rule_index, unobserved_relation_names, 1, 1)
 
-        # TODO(eriq): This is where a prior would be added.
-        # Add in the transition from the last layer to the actual query.
+        # Add in the transition from the last layer to the actual query as well as priors.
 
-        program.append('')
+        program.append('\n% Final Layer Transitions and Priors')
+
         relation_map = {relation.name(): relation for relation in self._relations}
         for relation_name in sorted(unobserved_relation_names):
-            arguments = ', '.join(string.ascii_uppercase[0:relation_map[relation_name].arity()])
-            program.append("%s(%s) :- %s_l%d(%s) ." % (relation_name.lower(), arguments, relation_name.lower(), current_level, arguments))
+            relation = relation_map[relation_name]
+            arguments = ', '.join(string.ascii_uppercase[0:relation.arity()])
 
-    def _collective_rule_rename(self, rule_index, unobserved_relation_names, current_level):
+            program.append('')
+            program.append("%s(%s) :- %s_l%d(%s) ." % (relation_name.lower(), arguments, relation_name.lower(), 1, arguments))
+
+            if (relation.has_negative_prior_weight()):
+                program.append("%f :: %s(%s) :- \\+ %s_l%d(%s) ." % (relation.get_negative_prior_weight(),
+                        relation_name.lower(), arguments, relation_name.lower(), 1, arguments))
+
+    def _collective_rule_rename(self, rule_index, unobserved_relation_names, current_level, next_level):
         rule_strings = []
         ast = srli.parser.parse(self._rules[rule_index])
 
@@ -184,10 +184,6 @@ class ProbLog(object):
         head_relations = set([atom['relation_name'] for atom in ast[1].get_atoms()])
         body_relations = set([atom['relation_name'] for atom in ast[0].get_atoms()])
 
-        # TEST
-        # next_level = current_level + 1
-        next_level = current_level
-
         rule_string = self._walk_rule(ast, unobserved_relation_names, current_level, next_level)
 
         weight = ''
@@ -196,7 +192,10 @@ class ProbLog(object):
 
         rule_strings.append("%s%s ." % (weight, rule_string))
 
-        # Every unobserved relation needs to be moved through the current level.
+        if (current_level == next_level):
+            return rule_strings
+
+        # When moving levels, every unobserved relation needs to be moved through the current level.
         # For relations with the same relation in the head and body, the transition is already made.
         # For all other relations, the transition needs to be made explicitly.
 
@@ -204,9 +203,6 @@ class ProbLog(object):
 
         for relation_name in unobserved_relation_names:
             relation = relation_map[relation_name]
-            if (relation.arity() > len(string.ascii_uppercase)):
-                raise ValueError("%s -- Relation arity too large, must be <= %d." % (str(relation), len(string.ascii_uppercase)))
-
             arguments = ', '.join(string.ascii_uppercase[0:relation.arity()])
             rule_strings.append("%s_l%d(%s) :- %s_l%d(%s) ." % (relation_name.lower(), next_level, arguments, relation_name.lower(), current_level, arguments))
 

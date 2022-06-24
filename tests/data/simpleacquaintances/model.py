@@ -19,7 +19,8 @@ class SimpleAcquaintancesModel(tests.data.base.TestModel):
     def run(self, engine_type = srli.inference.PSL):
         lived = srli.relation.Relation('Lived', arity = 2, variable_types = ['Person', 'Location'])
         likes = srli.relation.Relation('Likes', arity = 2, variable_types = ['Person', 'Thing'])
-        knows = srli.relation.Relation('Knows', arity = 2, variable_types = ['Person', 'Person'])
+        knows = srli.relation.Relation('Knows', arity = 2, variable_types = ['Person', 'Person'],
+                negative_prior_weight = 0.05)
 
         self.load_data(lived, observed = ['lived_obs.txt'])
         self.load_data(likes, observed = ['likes_obs.txt'])
@@ -31,10 +32,9 @@ class SimpleAcquaintancesModel(tests.data.base.TestModel):
             'Likes(P1, L) & Likes(P2, L) & (P1 != P2) -> Knows(P1, P2)',
             'Knows(P1, P2) & Knows(P2, P3) & (P1 != P3) -> Knows(P1, P3)',
             'Knows(P1, P2) = Knows(P2, P1)',
-            '!Knows(P1, P2)'
         ]
 
-        weights = [20.0, 5.0, 10.0, 5.0, None, 5.0]
+        weights = [0.20, 0.05, 0.10, 0.05, None, 0.05]
         squared = [True, True, True, True, None, True]
 
         engine = engine_type(

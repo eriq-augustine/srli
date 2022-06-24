@@ -9,6 +9,9 @@ FLIP_MULTIPLIER = 10
 
 HARD_WEIGHT = 1000.0
 
+# TODO(eriq): The weight for negative priors is not handled consistently, i.e., it is treated both as a weight and probability.
+# TODO(eriq): The prior should also be taken into account when flipping. The above issue makes this hard.
+
 class MLN(object):
     """
     A basic implementation of MLNs with inference using MaxWalkSat.
@@ -30,7 +33,7 @@ class MLN(object):
         rng = random.Random(seed)
 
         raw_ground_rules = srli.grounding.ground(self._relations, self._rules)
-        ground_rules, atom_grounding_map = self._process_ground_rules(raw_ground_rules)
+        ground_rules, atom_grounding_map, negative_priors = self._process_ground_rules(raw_ground_rules)
 
         if (max_flips is None):
             max_flips = FLIP_MULTIPLIER * len(atom_grounding_map)
@@ -40,7 +43,7 @@ class MLN(object):
         best_attempt = None
 
         for attempt in range(1, max_tries + 1):
-            atom_values, total_loss = self._inference_attempt(attempt, max_flips, rng, noise, ground_rules, atom_grounding_map)
+            atom_values, total_loss = self._inference_attempt(attempt, max_flips, rng, noise, ground_rules, atom_grounding_map, negative_priors)
             if (best_total_loss is None or total_loss < best_total_loss):
                 best_total_loss = total_loss
                 best_atom_values = atom_values
@@ -53,10 +56,13 @@ class MLN(object):
 
         return self._create_results(best_atom_values)
 
-    def _inference_attempt(self, attempt, max_flips, rng, noise, ground_rules, atom_grounding_map):
+    def _inference_attempt(self, attempt, max_flips, rng, noise, ground_rules, atom_grounding_map, negative_priors):
         atom_values = {}
         for atom_index in atom_grounding_map:
-            atom_values[atom_index] = rng.randint(0, 1)
+            if (negative_priors[atom_index] is not None):
+                atom_values[atom_index] = int(rng.random() < negative_priors[atom_index])
+            else:
+                atom_values[atom_index] = rng.randint(0, 1)
 
         total_loss = 0.0
         for ground_rule in ground_rules:
@@ -142,6 +148,7 @@ class MLN(object):
         """
 
         atom_grounding_map = {}
+        negative_priors = {}
         ground_rules = []
 
         relation_counts = []
@@ -159,7 +166,7 @@ class MLN(object):
             constant = raw_ground_rule.constant
 
             for i in range(len(raw_ground_rule.atoms)):
-                observed, value = self._fetch_atom(relation_counts, raw_ground_rule.atoms[i])
+                observed, value, negative_prior = self._fetch_atom(relation_counts, raw_ground_rule.atoms[i])
 
                 # TODO(eriq): Find and skip trivial ground rules (depends on rule/evaluation type.
 
@@ -176,6 +183,7 @@ class MLN(object):
                 else:
                     atoms.append(raw_ground_rule.atoms[i])
                     coefficients.append(raw_ground_rule.coefficients[i])
+                    negative_priors[raw_ground_rule.atoms[i]] = negative_prior
 
             if (skip):
                 continue
@@ -190,7 +198,7 @@ class MLN(object):
                     atom_grounding_map[atom_index] = []
                 atom_grounding_map[atom_index].append(ground_rule_index)
 
-        return ground_rules, atom_grounding_map
+        return ground_rules, atom_grounding_map, negative_priors
 
     def _fetch_atom(self, relation_counts, index):
         # Get the relation.
@@ -209,7 +217,7 @@ class MLN(object):
             if (len(atom_data) == relation.arity() + 1):
                 value = int(float(atom_data[-1]) > 0.0)
 
-            return True, value
+            return True, value, None
 
         index -= len(relation.get_observed_data())
 
@@ -221,7 +229,7 @@ class MLN(object):
         if (len(atom_data) == relation.arity() + 1):
             value = int(float(atom_data[-1]) > 0.0)
 
-        return False, value
+        return False, value, relation.get_negative_prior_weight()
 
 class GroundRule(object):
     def __init__(self, weight, atoms, coefficients, constant, operator):

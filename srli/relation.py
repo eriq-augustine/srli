@@ -1,5 +1,8 @@
 import csv
 import enum
+import string
+
+MAX_ARITY = len(string.ascii_uppercase)
 
 class Relation(object):
     class DataType(enum.Enum):
@@ -9,13 +12,18 @@ class Relation(object):
 
     # TODO(eriq): Allow more ways of specifying arguments.
     # TODO(eriq): Types are mainly ignored right now.
-    def __init__(self, name, arity = None, variable_types = None):
+    # TODO(eriq): Priors can be much more expressive and complicated.
+    def __init__(self, name, arity = None, variable_types = None, negative_prior_weight = None):
         self._name = name
         self._arity = arity
         self._variable_types = variable_types
+        self._negative_prior_weight = negative_prior_weight
 
         if (self._arity is None and self._variable_types is not None):
             self._arity = len(self._variable_types)
+
+        if (self._arity > MAX_ARITY):
+            raise ValueError("%s -- Relation arity too large, must be <= %d." % (str(self), MAX_ARITY))
 
         # {dataType: data, ...}
         self._data = {}
@@ -35,6 +43,12 @@ class Relation(object):
 
     def is_observed(self):
         return self.has_observed_data() and not self.has_unobserved_data()
+
+    def has_negative_prior_weight(self):
+        return (self._negative_prior_weight is not None)
+
+    def get_negative_prior_weight(self):
+        return self._negative_prior_weight
 
     def has_data(self, data_type):
         return len(self._data[data_type]) != 0

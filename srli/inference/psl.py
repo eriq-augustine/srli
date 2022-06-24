@@ -1,3 +1,4 @@
+import string
 import uuid
 
 import pslpython.model
@@ -42,6 +43,17 @@ class PSL(object):
         for i in range(len(self._rules)):
             rule = pslpython.rule.Rule(self._rules[i], weighted = self._weights[i] is not None,
                     weight = self._weights[i], squared = self._squared[i])
+            model.add_rule(rule)
+
+        # Add in priors as rules.
+        for relation in self._relations:
+            if (not relation.has_negative_prior_weight()):
+                continue
+
+            arguments = ', '.join(string.ascii_uppercase[0:relation.arity()])
+            rule_text = "!%s(%s)" % (relation.name(), arguments)
+
+            rule = pslpython.rule.Rule(rule_text, weighted = True, weight = relation.get_negative_prior_weight(), squared = True)
             model.add_rule(rule)
 
         if (additional_config is None):

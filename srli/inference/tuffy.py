@@ -117,7 +117,11 @@ class Tuffy(object):
                 # Tuffy args cannot have spaces.
                 row = list(map(lambda argument: argument.replace(' ', '_'), row))
 
-                line = "%s(%s)" % (relation.name(), ', '.join(map(str, row[0:relation.arity()])))
+                prior = ''
+                if (relation.has_negative_prior_weight()):
+                    prior = "%f " % (relation.get_negative_prior_weight())
+
+                line = "%s%s(%s)" % (prior, relation.name(), ', '.join(map(str, row[0:relation.arity()])))
                 query.append(line)
 
         self._write_file(path, query)

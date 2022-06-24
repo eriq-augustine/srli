@@ -18,8 +18,8 @@ class SmokersModel(tests.data.base.TestModel):
 
     def run(self, engine_type = srli.inference.PSL):
         friends = srli.relation.Relation('Friends', variable_types = ['Person', 'Person'])
-        smokes = srli.relation.Relation('Smokes', variable_types = ['Person'])
-        cancer = srli.relation.Relation('Cancer', variable_types = ['Person'])
+        smokes = srli.relation.Relation('Smokes', variable_types = ['Person'], negative_prior_weight = 0.01)
+        cancer = srli.relation.Relation('Cancer', variable_types = ['Person'], negative_prior_weight = 0.01)
 
         self.load_data(friends, observed = ['friends_obs.txt'])
         self.load_data(smokes, observed = ['smokes_obs.txt'], unobserved = ['smokes_targets.txt'], truth = ['smokes_truth.txt'])
@@ -29,13 +29,10 @@ class SmokersModel(tests.data.base.TestModel):
             'Smokes(X) -> Cancer(X)',
             'Friends(A1, A2) & Smokes(A1) -> Smokes(A2)',
             'Friends(A1, A2) & Smokes(A2) -> Smokes(A1)',
-            # TEST
-            # '!Smokes(X)',
-            # '!Cancer(X)',
         ]
 
-        weights = [0.5, 0.4, 0.4, 0.01, 0.01]
-        squared = [True, True, True, True, True]
+        weights = [0.5, 0.4, 0.4]
+        squared = [True, True, True]
 
         engine = engine_type(
                 relations = [friends, smokes, cancer],
