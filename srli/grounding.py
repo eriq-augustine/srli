@@ -21,7 +21,12 @@ def ground(relations, rules):
         observed_data.append(relation.get_observed_data())
         unobserved_data.append(relation.get_unobserved_data())
 
-    return grounding_api.ground(rules, relationNames, relationArities, observed_data, unobserved_data)
+    ground_rules = grounding_api.ground(rules, relationNames, relationArities, observed_data, unobserved_data)
+    ground_rules = [GroundRuleInfo(ground_rule) for ground_rule in ground_rules]
+
+    _shutdown()
+
+    return ground_rules
 
 def _convert_relations(relations):
     relationNames = []
@@ -37,7 +42,23 @@ def _convert_relations(relations):
 def _convert_rules(rules):
     return [rule + ' .' for rule in rules]
 
+def _shutdown():
+    jpype.shutdownJVM()
+
 def _init():
     jpype.startJVM(classpath = [CLASSPATH])
     from org.linqs.psl.java import GroundingAPI
     return GroundingAPI
+
+class GroundRuleInfo(object):
+    """
+    A Python mirror of the Java class.
+    With this, the JVM can be shutdown before the rules are passed to the user.
+    """
+
+    def __init__(self, java_ground_rule_info):
+        self.ruleIndex = int(java_ground_rule_info.ruleIndex)
+        self.operator = str(java_ground_rule_info.operator)
+        self.constant = float(java_ground_rule_info.constant)
+        self.coefficients = list(map(float, java_ground_rule_info.coefficients))
+        self.atoms = list(map(int, java_ground_rule_info.atoms))
