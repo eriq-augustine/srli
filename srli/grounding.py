@@ -3,9 +3,10 @@ import os
 import jpype
 import jpype.imports
 import jpype.types
+import pslpython
 
-THIS_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)))
-CLASSPATH = os.path.join(THIS_DIR, 'jars', '*')
+# Use the jar in pslpython as the classpath.
+CLASSPATH = os.path.join(pslpython.__path__[0], 'cli', 'psl-cli.jar')
 
 # TODO(eriq): Because of limitations in jpype, the JVM cannot be shutdown and started again.
 
