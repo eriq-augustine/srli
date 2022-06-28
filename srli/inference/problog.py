@@ -42,7 +42,6 @@ class ProbLog(object):
         raw_results = {str(key): float(value) for (key, value) in raw_results.items()}
 
         results = {}
-
         for relation in self._relations:
             if (not relation.has_unobserved_data()):
                 continue

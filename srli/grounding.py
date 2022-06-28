@@ -7,6 +7,8 @@ import jpype.types
 THIS_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)))
 CLASSPATH = os.path.join(THIS_DIR, 'jars', '*')
 
+# TODO(eriq): Because of limitations in jpype, the JVM cannot be shutdown and started again.
+
 def ground(relations, rules):
     grounding_api = _init()
 
@@ -23,8 +25,6 @@ def ground(relations, rules):
 
     ground_rules = grounding_api.ground(rules, relationNames, relationArities, observed_data, unobserved_data)
     ground_rules = [GroundRuleInfo(ground_rule) for ground_rule in ground_rules]
-
-    _shutdown()
 
     return ground_rules
 
@@ -46,7 +46,9 @@ def _shutdown():
     jpype.shutdownJVM()
 
 def _init():
-    jpype.startJVM(classpath = [CLASSPATH])
+    if (not jpype.isJVMStarted()):
+        jpype.startJVM(classpath = [CLASSPATH])
+
     from org.linqs.psl.java import GroundingAPI
     return GroundingAPI
 
