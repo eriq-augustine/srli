@@ -6,12 +6,12 @@ import pslpython.partition
 import pslpython.predicate
 import pslpython.rule
 
+import srli.engine
 import srli.grounding
 
-class PSL(object):
+class PSL(srli.engine.Engine):
     def __init__(self, relations, rules, weights = None, squared = None, **kwargs):
-        self._relations = relations
-        self._rules = rules
+        super().__init__(relations, rules)
 
         if (weights is not None and len(weights) > 0):
             self._weights = weights
@@ -23,20 +23,59 @@ class PSL(object):
         else:
             self._squared = [True] * len(self._rules)
 
-    def solve(self, additional_config = None, **kwargs):
+    def solve(self, additional_config = None, transform_config = None, **kwargs):
+        model = self._prep_model()
+
+        if (additional_config is None):
+            additional_config = {}
+
+        raw_results = model.infer(psl_options = additional_config, transform_config = transform_config)
+
+        results = {}
+        for (predicate, data) in raw_results.items():
+            results[self._find_relation(predicate.name())] = data.to_numpy().tolist()
+
+        return results
+
+    def learn(self, additional_config = None, transform_config = None, **kwargs):
+        model = self._prep_model()
+
+        if (additional_config is None):
+            additional_config = {}
+
+        model.learn(psl_options = additional_config, transform_config = transform_config)
+
+        learned_rules = model.get_rules()
+
+        # Note that additional rules were added that are not SRLi rules (like negative priors).
+        for i in range(len(self._rules)):
+            if (self._weights[i] is not None):
+                self._weights[i] = learned_rules[i].weight()
+
+        current_rule = len(self._rules)
+        for relation in self._relations:
+            if (not relation.has_negative_prior_weight()):
+                continue
+
+            relation.set_negative_prior_weight(learned_rules[current_rule].weight())
+            current_rule += 1
+
+        return self
+
+    def _prep_model(self):
         model = pslpython.model.Model(str(uuid.uuid4()))
 
         for relation in self._relations:
-            predicate = pslpython.predicate.Predicate(relation.name(), closed = relation.is_observed(), size = relation.arity())
+            predicate = pslpython.predicate.Predicate(relation.name(), size = relation.arity())
 
             if (relation.has_observed_data()):
-                predicate.add_data(pslpython.partition.Partition.OBSERVATIONS, relation.get_observed_data())
+                predicate.add_observed_data(relation.get_observed_data())
 
             if (relation.has_unobserved_data()):
-                predicate.add_data(pslpython.partition.Partition.TARGETS, relation.get_unobserved_data())
+                predicate.add_target_data(relation.get_unobserved_data())
 
             if (relation.has_truth_data()):
-                predicate.add_data(pslpython.partition.Partition.TRUTH, relation.get_truth_data())
+                predicate.add_truth_data(relation.get_truth_data())
 
             model.add_predicate(predicate)
 
@@ -56,16 +95,21 @@ class PSL(object):
             rule = pslpython.rule.Rule(rule_text, weighted = True, weight = relation.get_negative_prior_weight(), squared = True)
             model.add_rule(rule)
 
-        if (additional_config is None):
-            additional_config = {}
+        # Add in functional constraints.
+        # TODO(eriq): There are several assumption here, e.g., hard weight, summation on last arg, etc.
+        for relation in self._relations:
+            if (not relation.is_functional()):
+                continue
 
-        raw_results = model.infer(psl_config = additional_config)
+            arguments = list(string.ascii_uppercase[0:relation.arity()])
+            arguments[-1] = '+' + arguments[-1]
+            arguments = ', '.join(arguments)
+            rule_text = "%s(%s) = 1.0" % (relation.name(), arguments)
 
-        results = {}
-        for (predicate, data) in raw_results.items():
-            results[self._find_relation(predicate.name())] = data.to_numpy().tolist()
+            rule = pslpython.rule.Rule(rule_text, weighted = False)
+            model.add_rule(rule)
 
-        return results
+        return model
 
     def _find_relation(self, name):
         for relation in self._relations:

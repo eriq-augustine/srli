@@ -6,6 +6,7 @@ import sklearn.metrics
 
 import srli.inference
 import srli.relation
+import srli.util
 
 import tests.data.base
 
@@ -46,8 +47,8 @@ class SimpleAcquaintancesModel(tests.data.base.TestModel):
 
         results = engine.solve()
 
-        eval_data = self.get_eval_data(results, discretize = True)
-        f1 = sklearn.metrics.f1_score(eval_data[knows]['expected'], eval_data[knows]['predicted'])
+        expected, predicted = srli.util.get_eval_values(knows, results[knows], discretize = True)
+        f1 = sklearn.metrics.f1_score(expected, predicted)
 
         return results, {knows: {'f1': f1}}
 

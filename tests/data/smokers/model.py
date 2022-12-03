@@ -6,6 +6,7 @@ import sklearn.metrics
 
 import srli.inference
 import srli.relation
+import srli.util
 
 import tests.data.base
 
@@ -43,16 +44,22 @@ class SmokersModel(tests.data.base.TestModel):
 
         results = engine.solve()
 
-        eval_data = self.get_eval_data(results, discretize = True)
+        expected, predicted = srli.util.get_eval_values(smokes, results[smokes], discretize = True)
+        smokes_f1 = sklearn.metrics.f1_score(expected, predicted)
+        smokes_accuracy = sklearn.metrics.accuracy_score(expected, predicted)
+
+        expected, predicted = srli.util.get_eval_values(cancer, results[cancer], discretize = True)
+        cancer_f1 = sklearn.metrics.f1_score(expected, predicted)
+        cancer_accuracy = sklearn.metrics.accuracy_score(expected, predicted)
 
         metrics = {
             smokes: {
-                'f1': sklearn.metrics.f1_score(eval_data[smokes]['expected'], eval_data[smokes]['predicted']),
-                'accuracy': sklearn.metrics.accuracy_score(eval_data[smokes]['expected'], eval_data[smokes]['predicted']),
+                'f1': smokes_f1,
+                'accuracy': smokes_accuracy,
             },
             cancer: {
-                'f1': sklearn.metrics.f1_score(eval_data[cancer]['expected'], eval_data[cancer]['predicted']),
-                'accuracy': sklearn.metrics.accuracy_score(eval_data[cancer]['expected'], eval_data[cancer]['predicted']),
+                'f1': cancer_f1,
+                'accuracy': cancer_accuracy,
             },
         }
 

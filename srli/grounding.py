@@ -6,7 +6,7 @@ import jpype.types
 import pslpython
 
 # Use the jar in pslpython as the classpath.
-CLASSPATH = os.path.join(pslpython.__path__[0], 'cli', 'psl-cli.jar')
+CLASSPATH = os.path.join(pslpython.__path__[0], 'psl-runtime.jar')
 
 # TODO(eriq): Because of limitations in jpype, the JVM cannot be shutdown and started again.
 
