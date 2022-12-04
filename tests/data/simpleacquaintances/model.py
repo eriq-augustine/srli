@@ -4,7 +4,7 @@ import os
 
 import sklearn.metrics
 
-import srli.engine.mln
+import srli.engine.mln.native
 import srli.engine.psl
 import srli.relation
 import srli.util
@@ -15,7 +15,7 @@ THIS_DIR = os.path.abspath(os.path.dirname(__file__))
 DATA_DIR = os.path.join(THIS_DIR, 'data')
 
 ENGINE_OPTIONS = {
-    srli.engine.mln.NativeMLN: {
+    srli.engine.mln.native.NativeMLN: {
         'max_flips': 150
     }
 }

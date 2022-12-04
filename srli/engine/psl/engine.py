@@ -10,7 +10,7 @@ import srli.engine.base
 
 class PSL(srli.engine.base.BaseEngine):
     def __init__(self, relations, rules, weights = None, squared = None, additional_config = {}, **kwargs):
-        super().__init__(relations, rules)
+        super().__init__(relations, rules, **kwargs)
 
         if (weights is not None and len(weights) > 0):
             self._weights = weights
