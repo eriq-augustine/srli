@@ -1,6 +1,7 @@
 import random
 
-import srli.inference.psl
+import srli.engine.base
+import srli.engine.psl
 
 DEFAULT_MAX_TRIES = 3
 DEFAULT_NOISE = 0.05
@@ -12,15 +13,14 @@ HARD_WEIGHT = 1000.0
 # TODO(eriq): The weight for negative priors is not handled consistently, i.e., it is treated both as a weight and probability.
 # TODO(eriq): The prior should also be taken into account when flipping. The above issue makes this hard.
 
-class MLN(object):
+class NativeMLN(srli.engine.base.BaseEngine):
     """
     A basic implementation of MLNs with inference using MaxWalkSat.
     If unspecified, the number of flips defaults to FLIP_MULTIPLIER x the number of unobserved atoms (similar to Tuffy).
     """
 
     def __init__(self, relations, rules, weights = None, **kwargs):
-        self._relations = relations
-        self._rules = rules
+        super().__init__(relations, rules)
 
         if (weights is not None and len(weights) > 0):
             self._weights = weights
@@ -33,7 +33,7 @@ class MLN(object):
         rng = random.Random(seed)
 
         # Specifically ground with only hard constraints so arithmetic == is not turned into <= and >=.
-        engine = srli.inference.psl.PSL(self._relations, self._rules,
+        engine = srli.engine.psl.PSL(self._relations, self._rules,
                 weights = [None] * len(self._weights), squared = [False] * len(self._weights))
         ground_program = engine.ground(ignore_priors = True, ignore_functional = True)
 

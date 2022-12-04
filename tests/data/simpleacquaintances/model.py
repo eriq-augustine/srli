@@ -4,7 +4,8 @@ import os
 
 import sklearn.metrics
 
-import srli.inference
+import srli.engine.mln
+import srli.engine.psl
 import srli.relation
 import srli.util
 
@@ -14,7 +15,7 @@ THIS_DIR = os.path.abspath(os.path.dirname(__file__))
 DATA_DIR = os.path.join(THIS_DIR, 'data')
 
 ENGINE_OPTIONS = {
-    srli.inference.MLN: {
+    srli.engine.mln.NativeMLN: {
         'max_flips': 150
     }
 }
@@ -23,7 +24,7 @@ class SimpleAcquaintancesModel(tests.data.base.TestModel):
     def __init__(self):
         super().__init__(DATA_DIR)
 
-    def run(self, engine_type = srli.inference.PSL):
+    def run(self, engine_type = srli.engine.psl.PSL):
         lived = srli.relation.Relation('Lived', arity = 2, variable_types = ['Person', 'Location'])
         likes = srli.relation.Relation('Likes', arity = 2, variable_types = ['Person', 'Thing'])
         knows = srli.relation.Relation('Knows', arity = 2, variable_types = ['Person', 'Person'],

@@ -4,7 +4,7 @@ import os
 
 import sklearn.metrics
 
-import srli.inference
+import srli.engine.psl
 import srli.relation
 import srli.util
 
@@ -17,7 +17,7 @@ class SmokersModel(tests.data.base.TestModel):
     def __init__(self):
         super().__init__(DATA_DIR)
 
-    def run(self, engine_type = srli.inference.PSL):
+    def run(self, engine_type = srli.engine.psl.PSL):
         friends = srli.relation.Relation('Friends', variable_types = ['Person', 'Person'])
         smokes = srli.relation.Relation('Smokes', variable_types = ['Person'], negative_prior_weight = 0.01)
         cancer = srli.relation.Relation('Cancer', variable_types = ['Person'], negative_prior_weight = 0.01)
