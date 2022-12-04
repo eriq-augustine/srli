@@ -7,10 +7,9 @@ import pslpython.predicate
 import pslpython.rule
 
 import srli.engine
-import srli.grounding
 
 class PSL(srli.engine.Engine):
-    def __init__(self, relations, rules, weights = None, squared = None, **kwargs):
+    def __init__(self, relations, rules, weights = None, squared = None, additional_config = {}, **kwargs):
         super().__init__(relations, rules)
 
         if (weights is not None and len(weights) > 0):
@@ -23,13 +22,12 @@ class PSL(srli.engine.Engine):
         else:
             self._squared = [True] * len(self._rules)
 
-    def solve(self, additional_config = None, transform_config = None, **kwargs):
-        model = self._prep_model()
+        self._options = additional_config
 
-        if (additional_config is None):
-            additional_config = {}
+    def solve(self, additional_config = {}, transform_config = None, **kwargs):
+        model = self._prep_model(additional_config = additional_config)
 
-        raw_results = model.infer(psl_options = additional_config, transform_config = transform_config)
+        raw_results = model.infer(transform_config = transform_config)
 
         results = {}
         for (predicate, data) in raw_results.items():
@@ -37,13 +35,10 @@ class PSL(srli.engine.Engine):
 
         return results
 
-    def learn(self, additional_config = None, transform_config = None, **kwargs):
-        model = self._prep_model()
+    def learn(self, additional_config = {}, transform_config = None, **kwargs):
+        model = self._prep_model(additional_config)
 
-        if (additional_config is None):
-            additional_config = {}
-
-        model.learn(psl_options = additional_config, transform_config = transform_config)
+        model.learn(transform_config = transform_config)
 
         learned_rules = model.get_rules()
 
@@ -62,8 +57,16 @@ class PSL(srli.engine.Engine):
 
         return self
 
-    def _prep_model(self):
+    def ground(self, additional_config = {}, ignore_priors = False, ignore_functional = False, transform_config = None, **kwargs):
+        model = self._prep_model(additional_config, ignore_priors, ignore_functional)
+        return model.ground(transform_config = transform_config)
+
+    def _prep_model(self, additional_config = {}, ignore_priors = False, ignore_functional = False):
         model = pslpython.model.Model(str(uuid.uuid4()))
+
+        options = dict(self._options)
+        options.update(additional_config)
+        model.add_options(options)
 
         for relation in self._relations:
             predicate = pslpython.predicate.Predicate(relation.name(), size = relation.arity())
@@ -85,29 +88,31 @@ class PSL(srli.engine.Engine):
             model.add_rule(rule)
 
         # Add in priors as rules.
-        for relation in self._relations:
-            if (not relation.has_negative_prior_weight()):
-                continue
+        if (not ignore_priors):
+            for relation in self._relations:
+                if (not relation.has_negative_prior_weight()):
+                    continue
 
-            arguments = ', '.join(string.ascii_uppercase[0:relation.arity()])
-            rule_text = "!%s(%s)" % (relation.name(), arguments)
+                arguments = ', '.join(string.ascii_uppercase[0:relation.arity()])
+                rule_text = "!%s(%s)" % (relation.name(), arguments)
 
-            rule = pslpython.rule.Rule(rule_text, weighted = True, weight = relation.get_negative_prior_weight(), squared = True)
-            model.add_rule(rule)
+                rule = pslpython.rule.Rule(rule_text, weighted = True, weight = relation.get_negative_prior_weight(), squared = True)
+                model.add_rule(rule)
 
         # Add in functional constraints.
         # TODO(eriq): There are several assumption here, e.g., hard weight, summation on last arg, etc.
-        for relation in self._relations:
-            if (not relation.is_functional()):
-                continue
+        if (not ignore_functional):
+            for relation in self._relations:
+                if (not relation.is_functional()):
+                    continue
 
-            arguments = list(string.ascii_uppercase[0:relation.arity()])
-            arguments[-1] = '+' + arguments[-1]
-            arguments = ', '.join(arguments)
-            rule_text = "%s(%s) = 1.0" % (relation.name(), arguments)
+                arguments = list(string.ascii_uppercase[0:relation.arity()])
+                arguments[-1] = '+' + arguments[-1]
+                arguments = ', '.join(arguments)
+                rule_text = "%s(%s) = 1.0" % (relation.name(), arguments)
 
-            rule = pslpython.rule.Rule(rule_text, weighted = False)
-            model.add_rule(rule)
+                rule = pslpython.rule.Rule(rule_text, weighted = False)
+                model.add_rule(rule)
 
         return model
 

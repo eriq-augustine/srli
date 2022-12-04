@@ -13,6 +13,12 @@ import tests.data.base
 THIS_DIR = os.path.abspath(os.path.dirname(__file__))
 DATA_DIR = os.path.join(THIS_DIR, 'data')
 
+ENGINE_OPTIONS = {
+    srli.inference.MLN: {
+        'max_flips': 150
+    }
+}
+
 class SimpleAcquaintancesModel(tests.data.base.TestModel):
     def __init__(self):
         super().__init__(DATA_DIR)
@@ -45,7 +51,11 @@ class SimpleAcquaintancesModel(tests.data.base.TestModel):
                 weights = weights,
                 squared = squared)
 
-        results = engine.solve()
+        options = {}
+        if (engine_type in ENGINE_OPTIONS):
+            options = ENGINE_OPTIONS[engine_type]
+
+        results = engine.solve(**options)
 
         expected, predicted = srli.util.get_eval_values(knows, results[knows], discretize = True)
         f1 = sklearn.metrics.f1_score(expected, predicted)

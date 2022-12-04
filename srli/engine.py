@@ -9,8 +9,12 @@ class Engine(abc.ABC):
 
     @abc.abstractmethod
     def solve(self, **kwargs):
-        pass
+        raise NotImplementedError("Engine.solve")
 
     @abc.abstractmethod
     def learn(self, **kwargs):
-        pass
+        raise NotImplementedError("Engine.learn")
+
+    @abc.abstractmethod
+    def ground(self, **kwargs):
+        raise NotImplementedError("Engine.ground")

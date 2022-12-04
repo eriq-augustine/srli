@@ -1,6 +1,6 @@
 import random
 
-import srli.grounding
+import srli.inference.psl
 
 DEFAULT_MAX_TRIES = 3
 DEFAULT_NOISE = 0.05
@@ -15,7 +15,7 @@ HARD_WEIGHT = 1000.0
 class MLN(object):
     """
     A basic implementation of MLNs with inference using MaxWalkSat.
-    If unspecified, the number of flips defaults to FLIP_MULTIPLIERx the number of unobserved atoms (similar to Tuffy).
+    If unspecified, the number of flips defaults to FLIP_MULTIPLIER x the number of unobserved atoms (similar to Tuffy).
     """
 
     def __init__(self, relations, rules, weights = None, **kwargs):
@@ -32,8 +32,12 @@ class MLN(object):
             seed = random.randint(0, 2 ** 31)
         rng = random.Random(seed)
 
-        raw_ground_rules = srli.grounding.ground(self._relations, self._rules)
-        ground_rules, atom_grounding_map, negative_priors = self._process_ground_rules(raw_ground_rules)
+        # Specifically ground with only hard constraints so arithmetic == is not turned into <= and >=.
+        engine = srli.inference.psl.PSL(self._relations, self._rules,
+                weights = [None] * len(self._weights), squared = [False] * len(self._weights))
+        ground_program = engine.ground(ignore_priors = True, ignore_functional = True)
+
+        ground_rules, atoms, atom_grounding_map = self._process_ground_program(ground_program)
 
         if (max_flips is None):
             max_flips = FLIP_MULTIPLIER * len(atom_grounding_map)
@@ -43,7 +47,7 @@ class MLN(object):
         best_attempt = None
 
         for attempt in range(1, max_tries + 1):
-            atom_values, total_loss = self._inference_attempt(attempt, max_flips, rng, noise, ground_rules, atom_grounding_map, negative_priors)
+            atom_values, total_loss = self._inference_attempt(attempt, max_flips, rng, noise, ground_rules, atoms, atom_grounding_map)
             if (best_total_loss is None or total_loss < best_total_loss):
                 best_total_loss = total_loss
                 best_atom_values = atom_values
@@ -54,15 +58,18 @@ class MLN(object):
 
         print("MLN Inference Complete - Best Attempt: %d, Loss: %f." % (best_attempt, best_total_loss))
 
-        return self._create_results(best_atom_values)
+        return self._create_results(best_atom_values, atoms, rng)
 
-    def _inference_attempt(self, attempt, max_flips, rng, noise, ground_rules, atom_grounding_map, negative_priors):
+    def _get_initial_atom_value(self, rng, atom):
+        if (atom['relation'].has_negative_prior_weight()):
+            return int(rng.random() < atom['relation'].get_negative_prior_weight())
+
+        return rng.randint(0, 1)
+
+    def _inference_attempt(self, attempt, max_flips, rng, noise, ground_rules, atoms, atom_grounding_map):
         atom_values = {}
         for atom_index in atom_grounding_map:
-            if (negative_priors[atom_index] is not None):
-                atom_values[atom_index] = int(rng.random() < negative_priors[atom_index])
-            else:
-                atom_values[atom_index] = rng.randint(0, 1)
+            atom_values[atom_index] = self._get_initial_atom_value(rng, atoms[atom_index])
 
         total_loss = 0.0
         for ground_rule in ground_rules:
@@ -120,60 +127,83 @@ class MLN(object):
 
         return atom_values, total_loss
 
-    def _create_results(self, atom_values):
+    def _create_results(self, atom_values, atoms, rng):
         results = {}
-        next_index = 0
-        for relation in self._relations:
-            next_index += len(relation.get_observed_data())
 
+        # {(atom arg, ...): atom_index, ...}
+        atom_map = {tuple(atom['arguments']) : atom_index for (atom_index, atom) in atoms.items()}
+
+        for relation in self._relations:
             if (not relation.has_unobserved_data()):
                 continue
 
             data = relation.get_unobserved_data()
 
             values = []
-            for i in range(len(data)):
-                atom = data[i][0:relation.arity()] + [atom_values[next_index]]
-                values.append(atom)
-                next_index += 1
+
+            for row in data:
+                atom_index = atom_map[tuple(row)]
+
+                if (atom_index in atom_values):
+                    value = atom_values[atom_index]
+                else:
+                    # An atom not participating in any non-trivial rules.
+                    value = self._get_initial_atom_value(rng, atoms[atom_index])
+
+                values.append(list(row) + [value])
 
             results[relation] = values
 
         return results
 
-    def _process_ground_rules(self, raw_ground_rules):
+    def _process_ground_program(self, ground_program):
         """
         Take in the raw ground rules and collapse all the observed values.
         Return a mapping of grond atoms to all involved ground rules.
+
+        Returns:
+            [GroundRule, ...]
+            {atomIndex: {atom info ...}, ...}
+            {atom_index: [ground_rule_index, ...], ...}
         """
 
         atom_grounding_map = {}
-        negative_priors = {}
+        ground_atoms = {}
         ground_rules = []
 
-        relation_counts = []
-        for relation in self._relations:
-            relation_counts.append(len(relation.get_observed_data()) + len(relation.get_unobserved_data()));
+        relation_map = {relation.name().upper() : relation for relation in self._relations}
 
-        for raw_ground_rule in raw_ground_rules:
-            weight = self._weights[raw_ground_rule.ruleIndex]
+        for (atom_index_str, atom_info) in ground_program['atoms'].items():
+            atom_info['relation'] = relation_map[atom_info['predicate']]
+            ground_atoms[int(atom_index_str)] = atom_info
+
+        for raw_ground_rule in ground_program['groundRules']:
+            rule_index = raw_ground_rule['ruleIndex']
+            operator = raw_ground_rule['operator']
+            weight = self._weights[rule_index]
+            constant = raw_ground_rule['constant']
+
+            raw_coefficients = raw_ground_rule['coefficients']
+            raw_atoms = raw_ground_rule['atoms']
+
             if (weight is None):
                 weight = HARD_WEIGHT
 
-            skip = False
-            atoms = []
+            # TODO(eriq): An additional check for trivial rules can be useful here.
+
+            # Check the atoms for observed values (which will be folded into the constant) and trivality.
             coefficients = []
-            constant = raw_ground_rule.constant
+            atoms = []
+            skip = False
 
-            for i in range(len(raw_ground_rule.atoms)):
-                observed, value, negative_prior = self._fetch_atom(relation_counts, raw_ground_rule.atoms[i])
+            for i in range(len(raw_atoms)):
+                atom = ground_atoms[raw_atoms[i]]
+                coefficient = raw_coefficients[i]
 
-                # TODO(eriq): Find and skip trivial ground rules (depends on rule/evaluation type.
+                if (atom['observed']):
+                    value = atom['value']
 
-                if (observed):
-                    coefficient = raw_ground_rule.coefficients[i]
-
-                    if (raw_ground_rule.operator == '|'):
+                    if (operator == '|'):
                         # Skip trivials.
                         if ((coefficient == 1.0 and value == 0.0) or (coefficient == -1.0 and value == 1.0)):
                             skip = True
@@ -181,14 +211,13 @@ class MLN(object):
 
                     constant -= (coefficient * value)
                 else:
-                    atoms.append(raw_ground_rule.atoms[i])
-                    coefficients.append(raw_ground_rule.coefficients[i])
-                    negative_priors[raw_ground_rule.atoms[i]] = negative_prior
+                    coefficients.append(coefficient)
+                    atoms.append(raw_atoms[i])
 
             if (skip):
                 continue
 
-            ground_rule = GroundRule(weight, atoms, coefficients, constant, raw_ground_rule.operator)
+            ground_rule = GroundRule(weight, atoms, coefficients, constant, operator)
 
             ground_rule_index = len(ground_rules)
             ground_rules.append(ground_rule)
@@ -198,38 +227,7 @@ class MLN(object):
                     atom_grounding_map[atom_index] = []
                 atom_grounding_map[atom_index].append(ground_rule_index)
 
-        return ground_rules, atom_grounding_map, negative_priors
-
-    def _fetch_atom(self, relation_counts, index):
-        # Get the relation.
-        for relation_index in range(len(self._relations)):
-            if (index < relation_counts[relation_index]):
-                break
-            index -= relation_counts[relation_index]
-
-        relation = self._relations[relation_index]
-
-        # Check for an observed atom.
-        if (index < len(relation.get_observed_data())):
-            atom_data = relation.get_observed_data()[index]
-
-            value = 1.0
-            if (len(atom_data) == relation.arity() + 1):
-                value = int(float(atom_data[-1]) > 0.0)
-
-            return True, value, None
-
-        index -= len(relation.get_observed_data())
-
-        # Get an unobserved atom_data.
-
-        atom_data = relation.get_unobserved_data()[index]
-
-        value = None
-        if (len(atom_data) == relation.arity() + 1):
-            value = int(float(atom_data[-1]) > 0.0)
-
-        return False, value, relation.get_negative_prior_weight()
+        return ground_rules, ground_atoms, atom_grounding_map
 
 class GroundRule(object):
     def __init__(self, weight, atoms, coefficients, constant, operator):
