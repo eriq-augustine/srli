@@ -19,7 +19,7 @@ class BaseTest(unittest.TestCase):
     All tests need a base for standard setup and teardown.
     """
 
-    TEST_DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), 'data'))
+    DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), 'data'))
 
     EPSILON = 1e-4
 

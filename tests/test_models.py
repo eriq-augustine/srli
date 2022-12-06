@@ -4,7 +4,7 @@ import tests.base
 import tests.data.simpleacquaintances.model
 import tests.data.smokers.model
 
-TEST_MODELS = [
+MODELS = [
     tests.data.simpleacquaintances.model.SimpleAcquaintancesModel,
     tests.data.smokers.model.SmokersModel,
 ]
@@ -38,7 +38,7 @@ def _make_model_test(model_class, engine, additional_args = {}):
 
     return __test_method
 
-for model_class in TEST_MODELS:
+for model_class in MODELS:
     for engine in tests.base.ENGINES:
         if ((model_class, engine) in SKIP_PAIRS):
             continue
