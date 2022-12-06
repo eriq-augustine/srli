@@ -6,6 +6,8 @@ import tempfile
 
 import docker
 
+import srli.engine.base
+
 EVIDENCE_FILENAME = 'evidence.db'
 PROGRAM_FILENAME = 'prog.mln'
 QUERY_FILENAME = 'query.db'
@@ -14,24 +16,57 @@ OUTPUT_FILENAME = 'out.txt'
 TEMP_DIR_PREFIX = 'srli.tuffy.'
 
 THIS_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)))
-LIB_DIR = os.path.join(THIS_DIR, '..', 'lib', 'tuffy')
+LIB_DIR = os.path.join(THIS_DIR, 'lib')
 
 DOCKER_TAG = 'srli.tuffy'
 DOCKER_TUFFY_IO_DIR = '/tuffy/io'
 
-class Tuffy(object):
+class Tuffy(srli.engine.base.BaseEngine):
     """
     Run Tuffy in a Docker container.
     """
 
     def __init__(self, relations, rules, weights = None, **kwargs):
-        self._relations = relations
-        self._rules = rules
+        super().__init__(relations, rules, **kwargs)
 
         if (weights is not None and len(weights) > 0):
             self._weights = weights
         else:
             self._weights = [1.0] * len(self._rules)
+
+    def solve(self, cleanup_files = True, **kwargs):
+        temp_dir = tempfile.mkdtemp(prefix = TEMP_DIR_PREFIX)
+
+        program_path = os.path.join(temp_dir, PROGRAM_FILENAME)
+        evidence_path = os.path.join(temp_dir, EVIDENCE_FILENAME)
+        query_path = os.path.join(temp_dir, QUERY_FILENAME)
+        output_path = os.path.join(temp_dir, OUTPUT_FILENAME)
+
+        self._write_program(program_path)
+        self._write_evidence(evidence_path)
+        self._write_query(query_path)
+
+        self._run_tuffy(temp_dir)
+        raw_results = self._read_results(output_path)
+
+        if (cleanup_files):
+            shutil.rmtree(temp_dir)
+
+        results = {}
+        for relation in self._relations:
+            if (not relation.has_unobserved_data()):
+                continue
+
+            results[relation] = []
+
+            for row in relation.get_unobserved_data():
+                key = tuple(row[0:relation.arity()])
+                if (key in raw_results[relation]):
+                    results[relation].append(list(key) + [raw_results[relation][key]])
+                else:
+                    results[relation].append(list(key) + [0.0])
+
+        return results
 
     def _write_file(self, path, lines):
         with open(path, 'w') as file:
@@ -63,7 +98,7 @@ class Tuffy(object):
 
                 (predicate, _, arguments) = atom.partition('(')
                 relation = self._find_relation(predicate)
-                arguments = tuple(arguments.rstrip(')').split(', '))
+                arguments = tuple(arguments.rstrip(')').replace('"', '').split(', '))
 
                 if (relation not in results):
                     results[relation] = {}
@@ -173,37 +208,3 @@ class Tuffy(object):
 
         client.containers.run(DOCKER_TAG, volumes = volumes, name = DOCKER_TAG,
                 remove = True, network_disabled = True)
-
-    def solve(self, cleanup_files = True, **kwargs):
-        temp_dir = tempfile.mkdtemp(prefix = TEMP_DIR_PREFIX)
-
-        program_path = os.path.join(temp_dir, PROGRAM_FILENAME)
-        evidence_path = os.path.join(temp_dir, EVIDENCE_FILENAME)
-        query_path = os.path.join(temp_dir, QUERY_FILENAME)
-        output_path = os.path.join(temp_dir, OUTPUT_FILENAME)
-
-        self._write_program(program_path)
-        self._write_evidence(evidence_path)
-        self._write_query(query_path)
-
-        self._run_tuffy(temp_dir)
-        raw_results = self._read_results(output_path)
-
-        if (cleanup_files):
-            shutil.rmtree(temp_dir)
-
-        results = {}
-        for relation in self._relations:
-            if (not relation.has_unobserved_data()):
-                continue
-
-            results[relation] = []
-
-            for row in relation.get_unobserved_data():
-                key = tuple(row[0:relation.arity()])
-                if (key in raw_results[relation]):
-                    results[relation].append(list(key) + [raw_results[relation][key]])
-                else:
-                    results[relation].append(list(key) + [0.0])
-
-        return results

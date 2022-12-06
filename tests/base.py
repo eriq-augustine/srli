@@ -3,14 +3,15 @@ import unittest
 
 import srli.engine.mln.native
 import srli.engine.mln.pysat
-import srli.engine.psl
-import srli.inference
+import srli.engine.problog.engine
+import srli.engine.psl.engine
+import srli.engine.tuffy.docker
 
-ENGINE_PSL = srli.engine.psl.PSL
-ENGINE_TUFFY = srli.inference.Tuffy
+ENGINE_PSL = srli.engine.psl.engine.PSL
+ENGINE_TUFFY = srli.engine.tuffy.docker.Tuffy
 ENGINE_MLN_NATIVE = srli.engine.mln.native.NativeMLN
 ENGINE_MLN_PYSAT = srli.engine.mln.pysat.PySATMLN
-ENGINE_PL = srli.inference.ProbLog
+ENGINE_PL = srli.engine.problog.engine.ProbLog
 ENGINES = [ENGINE_PSL, ENGINE_TUFFY, ENGINE_MLN_NATIVE, ENGINE_MLN_PYSAT, ENGINE_PL]
 
 class BaseTest(unittest.TestCase):

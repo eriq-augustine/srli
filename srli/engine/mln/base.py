@@ -1,7 +1,7 @@
 import abc
 
 import srli.engine.base
-import srli.engine.psl
+import srli.engine.psl.engine
 
 HARD_WEIGHT = 1000.0
 
@@ -20,7 +20,7 @@ class BaseMLN(srli.engine.base.BaseEngine):
 
     def solve(self, **kwargs):
         # Specifically ground with only hard constraints so arithmetic == is not turned into <= and >=.
-        engine = srli.engine.psl.PSL(self._relations, self._rules,
+        engine = srli.engine.psl.engine.PSL(self._relations, self._rules,
                 weights = [None] * len(self._weights), squared = [False] * len(self._weights))
         ground_program = engine.ground(ignore_priors = True, ignore_functional = True)
 

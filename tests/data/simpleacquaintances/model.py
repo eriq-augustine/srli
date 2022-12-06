@@ -5,7 +5,7 @@ import os
 import sklearn.metrics
 
 import srli.engine.mln.native
-import srli.engine.psl
+import srli.engine.psl.engine
 import srli.relation
 import srli.util
 
@@ -24,7 +24,7 @@ class SimpleAcquaintancesModel(tests.data.base.TestModel):
     def __init__(self):
         super().__init__(DATA_DIR)
 
-    def run(self, engine_type = srli.engine.psl.PSL):
+    def run(self, engine_type = srli.engine.psl.engine.PSL):
         lived = srli.relation.Relation('Lived', arity = 2, variable_types = ['Person', 'Location'])
         likes = srli.relation.Relation('Likes', arity = 2, variable_types = ['Person', 'Thing'])
         knows = srli.relation.Relation('Knows', arity = 2, variable_types = ['Person', 'Person'],

@@ -2,6 +2,7 @@ import string
 
 import problog
 
+import srli.engine.base
 import srli.parser
 
 # HACK(eriq): All relations and arguments are made lowercase. There is potneital for collision in case-sensitive data.
@@ -9,14 +10,13 @@ import srli.parser
 
 DUMMY_VALUE_SUFFIX = '__dummy__'
 
-class ProbLog(object):
+class ProbLog(srli.engine.base.BaseEngine):
     """
     A basic implementation that builds a problog model and calls into the Python interface.
     """
 
     def __init__(self, relations, rules, weights = None, **kwargs):
-        self._relations = relations
-        self._rules = rules
+        super().__init__(relations, rules, **kwargs)
 
         if (weights is not None and len(weights) > 0):
             self._weights = weights
