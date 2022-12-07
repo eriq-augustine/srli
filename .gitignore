@@ -9,4 +9,5 @@ __pycache__
 
 *.swp
 
+/out/
 out*.txt
