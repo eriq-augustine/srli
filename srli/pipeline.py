@@ -35,6 +35,18 @@ class Pipeline(object):
             self._infer(engine)
             pass
 
+    def __repr__(self):
+        return json.dumps({
+            'options': self._options,
+            'rules': self._rules,
+            'weights': self._weights,
+            'squared': self._squared,
+            'relations': [relation.to_dict() for relation in self._relations],
+            'learn_data': {str(relation) : {str(data_type) : paths for (data_type, paths) in data_spec.items()} for (relation, data_spec) in self._learn_data.items()},
+            'infer_data': {str(relation) : {str(data_type) : paths for (data_type, paths) in data_spec.items()} for (relation, data_spec) in self._infer_data.items()},
+            'evaluations': [(str(relation), eval_info) for (relation, eval_info) in self._evaluations],
+        }, indent = 4)
+
     def _learn(self, engine):
         for relation in self._relations:
             relation.clear_data()
@@ -138,7 +150,7 @@ class Pipeline(object):
                 modifier = match.group(3)
 
                 # Check for a prior
-                match = re.search(r'^!(\w+)\([^\)]+\)$', base_rule)
+                match = re.search(r'^[!~](\w+)\([^\)]+\)$', base_rule)
                 if (match is not None):
                     name = match.group(1).upper()
                     relation_map[name].set_negative_prior_weight(weight)
@@ -159,7 +171,7 @@ class Pipeline(object):
                 base_rule = match.group(1).strip()
 
                 # Check for a functional constraint.
-                match = re.search(r'^(\w+)\([^\)]+\)\s*=\s*1(\.0)?$', base_rule)
+                match = re.search(r'^(\w+)\([^\)]+\+[^\)]*\)\s*=\s*1(\.0)?$', base_rule)
                 if (match is not None):
                     name = match.group(1).upper()
                     relation_map[name].set_functional(True)
@@ -211,7 +223,7 @@ class Pipeline(object):
             name = parts[0]
             arity = int(parts[1])
 
-        if (('types' in relation_config) and (relation_config['types']) > 0):
+        if (('types' in relation_config) and len(relation_config['types']) > 0):
             arity = len(relation_config['types'])
 
         relation = srli.relation.Relation(name, arity = arity)
@@ -287,6 +299,7 @@ class Pipeline(object):
 
 def main(path):
     pipeline = Pipeline.from_psl_config(path)
+    print(pipeline)
     pipeline.run()
 
 def _load_args(args):

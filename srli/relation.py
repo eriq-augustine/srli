@@ -126,3 +126,17 @@ class Relation(object):
 
     def __repr__(self):
         return "%s/%d" % (self._name, self._arity)
+
+    def to_dict(self):
+        rtn = {
+            'name': self._name,
+            'arity': self._arity,
+        }
+
+        if (self._negative_prior_weight is not None):
+            rtn['negative_prior_weight'] = self._negative_prior_weight
+
+        if (self._functional):
+            rtn['functional'] = True
+
+        return rtn
