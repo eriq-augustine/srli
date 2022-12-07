@@ -45,6 +45,9 @@ class Relation(object):
     def is_functional(self):
         return self._functional
 
+    def set_functional(self, functional):
+        self._functional = functional
+
     def has_negative_prior_weight(self):
         return (self._negative_prior_weight is not None)
 
