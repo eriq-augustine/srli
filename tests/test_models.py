@@ -1,5 +1,6 @@
 import os
 
+import srli.engine
 import tests.base
 import tests.data.simpleacquaintances.model
 import tests.data.smokers.model
@@ -10,18 +11,18 @@ MODELS = [
 ]
 
 SKIP_PAIRS = [
-    (tests.data.simpleacquaintances.model.SimpleAcquaintancesModel, tests.base.ENGINE_PL),
+    (tests.data.simpleacquaintances.model.SimpleAcquaintancesModel, srli.engine.Engine.ProbLog),
 ]
 
 class ModelTest(tests.base.BaseTest):
     pass
 
-def _make_model_test(model_class, engine, additional_args = {}):
+def _make_model_test(model_class, engine_type, additional_args = {}):
     def __test_method(self):
         model = model_class()
 
         expected_results = model.expected_results()
-        results, metrics = model.run(engine_type = engine, **additional_args)
+        results, metrics = model.run(engine_type = srli.engine.load(engine_type), **additional_args)
 
         print(metrics)
 
@@ -39,11 +40,11 @@ def _make_model_test(model_class, engine, additional_args = {}):
     return __test_method
 
 for model_class in MODELS:
-    for engine in tests.base.ENGINES:
-        if ((model_class, engine) in SKIP_PAIRS):
+    for engine_type in srli.engine.Engine:
+        if ((model_class, engine_type) in SKIP_PAIRS):
             continue
 
-        test_name = "test_%s_%s" % (model_class.__name__, engine.__name__)
-        test_method = _make_model_test(model_class, engine)
+        test_name = "test_%s_%s" % (model_class.__name__, engine_type.name)
+        test_method = _make_model_test(model_class, engine_type)
 
         setattr(ModelTest, test_name, test_method)

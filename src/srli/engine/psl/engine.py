@@ -9,7 +9,7 @@ import pslpython.rule
 import srli.engine.base
 
 class PSL(srli.engine.base.BaseEngine):
-    def __init__(self, relations, rules, weights = None, squared = None, additional_config = {}, **kwargs):
+    def __init__(self, relations, rules, weights = None, squared = None, **kwargs):
         super().__init__(relations, rules, **kwargs)
 
         if (weights is not None and len(weights) > 0):
@@ -21,8 +21,6 @@ class PSL(srli.engine.base.BaseEngine):
             self._squared = squared
         else:
             self._squared = [True] * len(self._rules)
-
-        self._options = additional_config
 
     def solve(self, additional_config = {}, transform_config = None, **kwargs):
         model = self._prep_model(additional_config = additional_config)

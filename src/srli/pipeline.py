@@ -1,7 +1,7 @@
+import argparse
 import json
 import os
 import re
-import sys
 
 import sklearn.metrics
 
@@ -25,8 +25,13 @@ class Pipeline(object):
         self._infer_data = infer_data
         self._evaluations = evaluations
 
-    def run(self, engine_type = srli.engine.psl.engine.PSL):
-        engine = engine_type(self._relations, self._rules, weights = self._weights, squared = self._squared)
+    def run(self, engine_type, additional_options = {}):
+        options = dict(self._options)
+        options.update(additional_options)
+
+        engine = engine_type(self._relations, self._rules,
+                weights = self._weights, squared = self._squared,
+                options = options)
 
         if ((len(self._learn_data) > 0) and (self._learn_data != self._infer_data)):
             self._learn(engine)
@@ -56,7 +61,7 @@ class Pipeline(object):
                 for path in paths:
                     relation.add_data_file(path, data_type = data_type)
 
-        engine.learn(additional_config = self._options)
+        engine.learn()
 
     def _infer(self, engine):
         for relation in self._relations:
@@ -67,7 +72,7 @@ class Pipeline(object):
                 for path in paths:
                     relation.add_data_file(path, data_type = data_type)
 
-        results = engine.solve(additional_config = self._options)
+        results = engine.solve()
 
         self._eval(results)
 
@@ -297,18 +302,40 @@ class Pipeline(object):
 
         return evaluations
 
-def main(path):
-    pipeline = Pipeline.from_psl_config(path)
+def main(arguments):
+    print(arguments)
+
+    options = {}
+    if (arguments.options is not None):
+        for (key, value) in arguments.options:
+            options[key] = value
+
+    engine_type = srli.engine.load(srli.engine.Engine(arguments.engine))
+
+    pipeline = Pipeline.from_psl_config(arguments.config_path)
     print(pipeline)
-    pipeline.run()
+    pipeline.run(engine_type, additional_options = options)
 
-def _load_args(args):
-    executable = args.pop(0)
-    if (len(args) != 1 or ({'h', 'help'} & {arg.lower().strip().replace('-', '') for arg in args})):
-        print("USAGE: python3 %s <config path>" % (executable), file = sys.stderr)
-        sys.exit(1)
+def _load_args():
+    parser = argparse.ArgumentParser(description = 'Run a SRLi pipeline from a PSL-style config file.')
 
-    return args.pop(0)
+    parser.add_argument('config_path',
+        action = 'store', type = str,
+        help = 'The path the the PSL-style JSON config.')
+
+    parser.add_argument('--engine', dest = 'engine',
+        action = 'store', type = str, default = srli.engine.Engine.PSL.name,
+        choices = [engine_type.name for engine_type in srli.engine.Engine],
+        help = 'The engine to run the pipeline with.')
+
+    parser.add_argument('--option', dest = 'options',
+        action = 'append', type = str, nargs = 2,
+        metavar=('key', 'value'),
+        help = 'Additional options to pass to the engine.')
+
+    arguments = parser.parse_args()
+
+    return arguments
 
 if (__name__ == '__main__'):
-    main(_load_args(sys.argv))
+    main(_load_args())
