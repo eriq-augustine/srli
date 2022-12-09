@@ -10,13 +10,8 @@ class PySATMLN(srli.engine.mln.base.BaseMLN):
     A basic implementation of MLNs with inference using PySAT as a SAT solver.
     """
 
-    def __init__(self, relations, rules, weights = None, **kwargs):
+    def __init__(self, relations, rules, **kwargs):
         super().__init__(relations, rules, **kwargs)
-
-        if (weights is not None and len(weights) > 0):
-            self._weights = weights
-        else:
-            self._weights = [1.0] * len(self._rules)
 
     def reason(self, ground_rules, atoms, **kwargs):
         ground_rules, atoms = self._adjust_atom_ids(ground_rules, atoms)
@@ -75,7 +70,7 @@ class PySATMLN(srli.engine.mln.base.BaseMLN):
                 continue
 
             if (coefficient not in [-1, 1]):
-                raise ValueError("MLN can only have logical rules with coefficients in {-1, 1}, found: %d,  [%s]." % (coefficient, rule))
+                raise ValueError("MLN can only have logical rules with coefficients in {-1, 1}, found: %d,  [%s]." % (coefficient, rule.text()))
 
             # If observed, this term may be trivial.
             value = atom['value']
@@ -104,11 +99,11 @@ class PySATMLN(srli.engine.mln.base.BaseMLN):
             return
 
         if (len(atoms) not in [1, 2]):
-            raise ValueError("MLN arithmetic rules can only have one or two atoms, found %d, [%s]." % (len(atoms), rule))
+            raise ValueError("MLN arithmetic rules can only have one or two atoms, found %d, [%s]." % (len(atoms), rule.text()))
 
         for i in range(len(coefficients)):
             if (abs(coefficients[i]) != 1):
-                raise ValueError("MLN arithmetic rules can only have a -1 or 1 coefficients, found: %f, [%s]." % (coefficients[i], rule))
+                raise ValueError("MLN arithmetic rules can only have a -1 or 1 coefficients, found: %f, [%s]." % (coefficients[i], rule.text()))
 
         if (len(atoms) == 1):
             # Check for trivial.
@@ -116,7 +111,7 @@ class PySATMLN(srli.engine.mln.base.BaseMLN):
                 return
 
             if (constant not in [0, 1]):
-                raise ValueError("MLN arithmetic rules can only have a 0.0 or 1.0 constant, found: %f, [%s]." % (constant, rule))
+                raise ValueError("MLN arithmetic rules can only have a 0.0 or 1.0 constant, found: %f, [%s]." % (constant, rule.text()))
 
             sign = -1
             if ((constant == 1 and coefficients[0] == 1) or (constant == 0 and coefficients[0] == -1)):
@@ -128,11 +123,11 @@ class PySATMLN(srli.engine.mln.base.BaseMLN):
         # len(atoms) == 2
 
         if (constant != 0):
-            raise ValueError("MLN arithmetic binary rules can only have a 0.0 constant, found: %f,  [%s]." % (constant, rule))
+            raise ValueError("MLN arithmetic binary rules can only have a 0.0 constant, found: %f,  [%s]." % (constant, rule.text()))
 
         for i in range(len(ground_rule.atoms)):
             if (ground_atoms[atoms[i]]['observed']):
-                raise ValueError("Not expecting an observed atom,  [%s]." % (rule))
+                raise ValueError("Not expecting an observed atom,  [%s]." % (rule.text()))
 
         # If the coefficients are the same, then theese atoms should differ (they are both on the LHS).
         if (coefficients[0] == coefficients[1]):

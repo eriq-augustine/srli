@@ -4,8 +4,9 @@ import os
 
 import sklearn.metrics
 
-import srli.engine
+import srli.engine.mln.native
 import srli.relation
+import srli.rule
 import srli.util
 
 import tests.data.base
@@ -14,8 +15,8 @@ THIS_DIR = os.path.abspath(os.path.dirname(__file__))
 DATA_DIR = os.path.join(THIS_DIR, 'data')
 
 ENGINE_OPTIONS = {
-    srli.engine.Engine.MLN_Native: {
-        'max_flips': 150
+    srli.engine.mln.native.NativeMLN: {
+        'max_flips': 250
     }
 }
 
@@ -34,22 +35,14 @@ class SimpleAcquaintancesModel(tests.data.base.TestModel):
         self.load_data(knows, observed = ['knows_obs.txt'], unobserved = ['knows_targets.txt'], truth = ['knows_truth.txt'])
 
         rules = [
-            'Lived(P1, L) & Lived(P2, L) & (P1 != P2) -> Knows(P1, P2)',
-            'Lived(P1, L1) & Lived(P2, L2) & (P1 != P2) & (L1 != L2) -> !Knows(P1, P2)',
-            'Likes(P1, L) & Likes(P2, L) & (P1 != P2) -> Knows(P1, P2)',
-            'Knows(P1, P2) & Knows(P2, P3) & (P1 != P3) -> Knows(P1, P3)',
-            'Knows(P1, P2) = Knows(P2, P1)',
+            srli.rule.Rule('Lived(P1, L) & Lived(P2, L) & (P1 != P2) -> Knows(P1, P2)', weight = 0.20, squared = True),
+            srli.rule.Rule('Lived(P1, L1) & Lived(P2, L2) & (P1 != P2) & (L1 != L2) -> !Knows(P1, P2)', weight = 0.05, squared = True),
+            srli.rule.Rule('Likes(P1, L) & Likes(P2, L) & (P1 != P2) -> Knows(P1, P2)', weight = 0.10, squared = True),
+            srli.rule.Rule('Knows(P1, P2) & Knows(P2, P3) & (P1 != P3) -> Knows(P1, P3)', weight = 0.05, squared = True),
+            srli.rule.Rule('Knows(P1, P2) = Knows(P2, P1)')
         ]
 
-        weights = [0.20, 0.05, 0.10, 0.05, None, 0.05]
-        squared = [True, True, True, True, None, True]
-
-        engine = engine_type(
-                relations = [lived, likes, knows],
-                rules = rules,
-                # PSL-specific.
-                weights = weights,
-                squared = squared)
+        engine = engine_type(relations = [lived, likes, knows], rules = rules)
 
         options = {}
         if (engine_type in ENGINE_OPTIONS):

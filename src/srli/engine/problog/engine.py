@@ -15,13 +15,8 @@ class ProbLog(srli.engine.base.BaseEngine):
     A basic implementation that builds a problog model and calls into the Python interface.
     """
 
-    def __init__(self, relations, rules, weights = None, **kwargs):
+    def __init__(self, relations, rules, **kwargs):
         super().__init__(relations, rules, **kwargs)
-
-        if (weights is not None and len(weights) > 0):
-            self._weights = weights
-        else:
-            self._weights = [None] * len(self._rules)
 
     def solve(self, **kwargs):
         program = []
@@ -129,7 +124,7 @@ class ProbLog(srli.engine.base.BaseEngine):
         non_collective_rules = []
 
         for i in range(len(self._rules)):
-            ast = srli.parser.parse(self._rules[i])
+            ast = srli.parser.parse(self._rules[i].text())
 
             unobserved_atoms = 0
             for atom in ast.get_atoms():
@@ -147,14 +142,14 @@ class ProbLog(srli.engine.base.BaseEngine):
         # Bring in all rules at the same layer and then use priors to transition to the final layer.
 
         for rule_index in non_collective_rules:
-            program.append("% Non-collective rule: " + self._rules[rule_index])
+            program.append("% Non-collective rule: " + self._rules[rule_index].text())
             program.append(self._simple_rule_rename(rule_index, unobserved_relation_names, 1))
 
         for (_, rule_index) in collectivity_counts:
             if (len(program) > 0):
                 program.append('')
 
-            program.append("% Collective rule: " + self._rules[rule_index])
+            program.append("% Collective rule: " + self._rules[rule_index].text())
             program += self._collective_rule_rename(rule_index, unobserved_relation_names, 1, 1)
 
         # Add in the transition from the last layer to the actual query as well as priors.
@@ -175,10 +170,10 @@ class ProbLog(srli.engine.base.BaseEngine):
 
     def _collective_rule_rename(self, rule_index, unobserved_relation_names, current_level, next_level):
         rule_strings = []
-        ast = srli.parser.parse(self._rules[rule_index])
+        ast = srli.parser.parse(self._rules[rule_index].text())
 
         if (not isinstance(ast, srli.parser.Implication)):
-            raise ValueError("Expected rule to be implication, got: '%s'." % (self._rules[rule_index]))
+            raise ValueError("Expected rule to be implication, got: '%s'." % (self._rules[rule_index].text()))
 
         head_relations = set([atom['relation_name'] for atom in ast[1].get_atoms()])
         body_relations = set([atom['relation_name'] for atom in ast[0].get_atoms()])
@@ -186,8 +181,8 @@ class ProbLog(srli.engine.base.BaseEngine):
         rule_string = self._walk_rule(ast, unobserved_relation_names, current_level, next_level)
 
         weight = ''
-        if (self._weights[rule_index] is not None):
-            weight = "%f :: " % (self._weights[rule_index])
+        if (self._rules[rule_index].is_weighted()):
+            weight = "%f :: " % (self._rules[rule_index].weight())
 
         rule_strings.append("%s%s ." % (weight, rule_string))
 
@@ -208,12 +203,12 @@ class ProbLog(srli.engine.base.BaseEngine):
         return rule_strings
 
     def _simple_rule_rename(self, rule_index, unobserved_relation_names, current_level):
-        ast = srli.parser.parse(self._rules[rule_index])
+        ast = srli.parser.parse(self._rules[rule_index].text())
         rule_string = self._walk_rule(ast, unobserved_relation_names, current_level, current_level)
 
         weight = ''
-        if (self._weights[rule_index] is not None):
-            weight = "%f :: " % (self._weights[rule_index])
+        if (self._rules[rule_index].is_weighted()):
+            weight = "%f :: " % (self._rules[rule_index].weight())
 
         return "%s%s ." % (weight, rule_string)
 

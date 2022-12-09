@@ -8,6 +8,7 @@ import sklearn.metrics
 
 import srli.engine.psl.engine
 import srli.relation
+import srli.rule
 import srli.util
 
 class Pipeline(object):
@@ -16,11 +17,9 @@ class Pipeline(object):
     Currently, the capabilities of describing, building, and running a pipeline are very limited (as a prototype).
     """
 
-    def __init__(self, options, rules, weights, squared, relations, learn_data, infer_data, evaluations):
+    def __init__(self, options, rules, relations, learn_data, infer_data, evaluations):
         self._options = options
         self._rules = rules
-        self._weights = weights
-        self._squared = squared
         self._relations = relations
         self._learn_data = learn_data
         self._infer_data = infer_data
@@ -35,7 +34,6 @@ class Pipeline(object):
         print('!!!')
 
         engine = engine_type(self._relations, self._rules,
-                weights = self._weights, squared = self._squared,
                 options = options, evaluations = self._evaluations)
 
         if ((len(self._learn_data) > 0) and (self._learn_data != self._infer_data)):
@@ -48,9 +46,7 @@ class Pipeline(object):
     def __repr__(self):
         return json.dumps({
             'options': self._options,
-            'rules': self._rules,
-            'weights': self._weights,
-            'squared': self._squared,
+            'rules': [rule.to_dict() for rule in self._rules],
             'relations': [relation.to_dict() for relation in self._relations],
             'learn_data': {str(relation) : {str(data_type) : paths for (data_type, paths) in data_spec.items()} for (relation, data_spec) in self._learn_data.items()},
             'infer_data': {str(relation) : {str(data_type) : paths for (data_type, paths) in data_spec.items()} for (relation, data_spec) in self._infer_data.items()},
@@ -121,9 +117,9 @@ class Pipeline(object):
 
         options = Pipeline._parse_options(config)
         relations, learn_data, infer_data, evaluations = Pipeline._parse_relations(config, base_path)
-        rules, weights, squared = Pipeline._parse_rules(config, relations)
+        rules = Pipeline._parse_rules(config, relations)
 
-        return Pipeline(options, rules, weights, squared, relations, learn_data, infer_data, evaluations)
+        return Pipeline(options, rules, relations, learn_data, infer_data, evaluations)
 
     @staticmethod
     def _parse_options(config):
@@ -151,8 +147,6 @@ class Pipeline(object):
             raise ValueError("Rules can only be defined in the top-level rules, found 'infer.rules'.")
 
         rules = []
-        weights = []
-        squared = []
 
         relation_map = {relation.name().upper() : relation for relation in relations}
 
@@ -161,6 +155,8 @@ class Pipeline(object):
 
             match = re.search(r'^(\d+(?:\.\d+)?)\s*:\s*(.+?)\s*((?:\^[12])?)$', base_rule)
             if (match is not None):
+                # A weighted rule.
+
                 base_rule = match.group(2).strip()
                 weight = float(match.group(1))
                 modifier = match.group(3)
@@ -172,18 +168,14 @@ class Pipeline(object):
                     relation_map[name].set_negative_prior_weight(weight)
                     continue
 
-                rules.append(base_rule)
-                weights.append(weight)
-
-                if (modifier == '^2'):
-                    squared.append(True)
-                else:
-                    squared.append(False)
+                rules.append(srli.rule.Rule(base_rule, weight = weight, squared = (modifier == '^2')))
 
                 continue
 
             match = re.search(r'^(.+?)\s*\.$', base_rule)
             if (match is not None):
+                # An unweighted rule.
+
                 base_rule = match.group(1).strip()
 
                 # Check for a functional constraint.
@@ -193,15 +185,13 @@ class Pipeline(object):
                     relation_map[name].set_functional(True)
                     continue
 
-                rules.append(base_rule)
-                weights.append(None)
-                squared.append(None)
+                rules.append(srli.rule.Rule(base_rule))
 
                 continue
 
             raise ValueError("Could not parse rule: [%s]." % (base_rule))
 
-        return rules, weights, squared
+        return rules
 
     @staticmethod
     def _parse_relations(config, base_path):

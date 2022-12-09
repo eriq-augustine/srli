@@ -26,13 +26,8 @@ class Tuffy(srli.engine.base.BaseEngine):
     Run Tuffy in a Docker container.
     """
 
-    def __init__(self, relations, rules, weights = None, **kwargs):
+    def __init__(self, relations, rules, **kwargs):
         super().__init__(relations, rules, **kwargs)
-
-        if (weights is not None and len(weights) > 0):
-            self._weights = weights
-        else:
-            self._weights = [1.0] * len(self._rules)
 
     def solve(self, cleanup_files = True, **kwargs):
         temp_dir = tempfile.mkdtemp(prefix = TEMP_DIR_PREFIX)
@@ -122,7 +117,7 @@ class Tuffy(srli.engine.base.BaseEngine):
         program.append('')
 
         for i in range(len(self._rules)):
-            rule = self._rules[i]
+            rule = self._rules[i].text()
             rule = rule.replace('&', ',')
             rule = rule.replace('->', '=>')
             rule = rule.replace(' = ', ' => ')
@@ -134,10 +129,10 @@ class Tuffy(srli.engine.base.BaseEngine):
             for relation in self._relations:
                 rule = rule.replace(relation.name().lower(), relation.name())
 
-            if (self._weights[i] is None):
-                program.append("%s ." % (rule))
+            if (self._rules[i].is_weighted()):
+                program.append("%f %s" % (self._rules[i].weight(), rule))
             else:
-                program.append("%f %s" % (self._weights[i], rule))
+                program.append("%s ." % (rule))
 
         # Write any prior rules.
         if (has_prior):

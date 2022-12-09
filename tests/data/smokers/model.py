@@ -6,6 +6,7 @@ import sklearn.metrics
 
 import srli.engine.psl.engine
 import srli.relation
+import srli.rule
 import srli.util
 
 import tests.data.base
@@ -27,20 +28,12 @@ class SmokersModel(tests.data.base.TestModel):
         self.load_data(cancer, unobserved = ['cancer_targets.txt'], truth = ['cancer_truth.txt'])
 
         rules = [
-            'Smokes(X) -> Cancer(X)',
-            'Friends(A1, A2) & Smokes(A1) -> Smokes(A2)',
-            'Friends(A1, A2) & Smokes(A2) -> Smokes(A1)',
+            srli.rule.Rule('Smokes(X) -> Cancer(X)', weight = 0.50, squared = True),
+            srli.rule.Rule('Friends(A1, A2) & Smokes(A1) -> Smokes(A2)', weight = 0.40, squared = True),
+            srli.rule.Rule('Friends(A1, A2) & Smokes(A2) -> Smokes(A1)', weight = 0.40, squared = True),
         ]
 
-        weights = [0.5, 0.4, 0.4]
-        squared = [True, True, True]
-
-        engine = engine_type(
-                relations = [friends, smokes, cancer],
-                rules = rules,
-                # PSL-specific.
-                weights = weights,
-                squared = squared)
+        engine = engine_type(relations = [friends, smokes, cancer], rules = rules)
 
         results = engine.solve()
 

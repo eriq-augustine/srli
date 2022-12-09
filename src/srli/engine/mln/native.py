@@ -13,13 +13,8 @@ class NativeMLN(srli.engine.mln.base.BaseMLN):
     If unspecified, the number of flips defaults to FLIP_MULTIPLIER x the number of unobserved atoms (similar to Tuffy).
     """
 
-    def __init__(self, relations, rules, weights = None, **kwargs):
+    def __init__(self, relations, rules, **kwargs):
         super().__init__(relations, rules, **kwargs)
-
-        if (weights is not None and len(weights) > 0):
-            self._weights = weights
-        else:
-            self._weights = [1.0] * len(self._rules)
 
     def reason(self, ground_rules, atoms, max_flips = None, max_tries = DEFAULT_MAX_TRIES, noise = DEFAULT_NOISE, **kwargs):
         atom_rule_map = self._map_atoms(ground_rules)

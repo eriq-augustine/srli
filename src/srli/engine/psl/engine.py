@@ -18,18 +18,8 @@ class PSL(srli.engine.base.BaseEngine):
         srli.evaluation.AuPRC: 'AUCEvaluator',
     }
 
-    def __init__(self, relations, rules, weights = None, squared = None, **kwargs):
+    def __init__(self, relations, rules, **kwargs):
         super().__init__(relations, rules, **kwargs)
-
-        if (weights is not None and len(weights) > 0):
-            self._weights = weights
-        else:
-            self._weights = [1.0] * len(self._rules)
-
-        if (squared is not None and len(squared) > 0):
-            self._squared = squared
-        else:
-            self._squared = [True] * len(self._rules)
 
     def solve(self, additional_config = {}, transform_config = None, **kwargs):
         model = self._prep_model(additional_config = additional_config)
@@ -51,8 +41,8 @@ class PSL(srli.engine.base.BaseEngine):
 
         # Note that additional rules were added that are not SRLi rules (like negative priors).
         for i in range(len(self._rules)):
-            if (self._weights[i] is not None):
-                self._weights[i] = learned_rules[i].weight()
+            if (self._rules[i].is_weighted()):
+                self._rules[i].set_weight(learned_rules[i].weight())
 
         current_rule = len(self._rules)
         for relation in self._relations:
@@ -105,8 +95,9 @@ class PSL(srli.engine.base.BaseEngine):
             model.add_predicate(predicate)
 
         for i in range(len(self._rules)):
-            rule = pslpython.rule.Rule(self._rules[i], weighted = self._weights[i] is not None,
-                    weight = self._weights[i], squared = self._squared[i])
+            rule = pslpython.rule.Rule(self._rules[i].text(),
+                    weighted = self._rules[i].is_weighted(), weight = self._rules[i].weight(),
+                    squared = self._rules[i].options().get('squared', False))
             model.add_rule(rule)
 
         # Add in priors as rules.

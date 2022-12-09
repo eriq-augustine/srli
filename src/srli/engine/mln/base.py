@@ -2,6 +2,7 @@ import abc
 
 import srli.engine.base
 import srli.engine.psl.engine
+import srli.rule
 
 HARD_WEIGHT = 1000.0
 
@@ -10,18 +11,13 @@ class BaseMLN(srli.engine.base.BaseEngine):
     The common base for a basic implementation of MLNs with inference using MaxWalkSat.
     """
 
-    def __init__(self, relations, rules, weights = None, **kwargs):
+    def __init__(self, relations, rules, **kwargs):
         super().__init__(relations, rules, **kwargs)
-
-        if (weights is not None and len(weights) > 0):
-            self._weights = weights
-        else:
-            self._weights = [1.0] * len(self._rules)
 
     def solve(self, **kwargs):
         # Specifically ground with only hard constraints so arithmetic == is not turned into <= and >=.
-        engine = srli.engine.psl.engine.PSL(self._relations, self._rules,
-                weights = [None] * len(self._weights), squared = [False] * len(self._weights))
+        grounding_rules = [srli.rule.Rule(rule.text()) for rule in self._rules]
+        engine = srli.engine.psl.engine.PSL(self._relations, grounding_rules)
         ground_program = engine.ground(ignore_priors = True, ignore_functional = True)
 
         ground_rules, atoms = self._process_ground_program(ground_program)
@@ -31,7 +27,7 @@ class BaseMLN(srli.engine.base.BaseEngine):
         return self._create_results(atom_values, atoms)
 
     @abc.abstractmethod
-    def reason(self, ground_rules, atoms):
+    def reason(self, ground_rules, atoms, **kwargs):
         pass
 
     def _get_initial_atom_value(self, atom):
@@ -91,7 +87,7 @@ class BaseMLN(srli.engine.base.BaseEngine):
         for raw_ground_rule in ground_program['groundRules']:
             rule_index = raw_ground_rule['ruleIndex']
             operator = raw_ground_rule['operator']
-            weight = self._weights[rule_index]
+            weight = self._rules[rule_index].weight()
             constant = int(raw_ground_rule['constant'])
 
             raw_coefficients = raw_ground_rule['coefficients']
