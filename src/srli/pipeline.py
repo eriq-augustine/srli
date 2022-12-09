@@ -29,10 +29,6 @@ class Pipeline(object):
         options = dict(self._options)
         options.update(additional_options)
 
-        print('!!!')
-        print(self._evaluations)
-        print('!!!')
-
         engine = engine_type(self._relations, self._rules,
                 options = options, evaluations = self._evaluations)
 

@@ -21,6 +21,13 @@ class Rule(object):
     def options(self):
         return self._options
 
+    def __repr__(self):
+        weight = '.'
+        if (self.is_weighted()):
+            weight = str(self._weight)
+
+        return "%s: %s" % (weight, self._text)
+
     def to_dict(self):
         return {
             'text': self._text,

@@ -5,7 +5,7 @@ import srli.engine.mln.base
 DEFAULT_MAX_TRIES = 3
 DEFAULT_NOISE = 0.05
 LOG_MOD = 50
-FLIP_MULTIPLIER = 10
+FLIP_MULTIPLIER = 2
 
 class NativeMLN(srli.engine.mln.base.BaseMLN):
     """
@@ -43,7 +43,7 @@ class NativeMLN(srli.engine.mln.base.BaseMLN):
     def _inference_attempt(self, attempt, max_flips, noise, ground_rules, atoms, atom_rule_map):
         atom_values = {}
         for atom_index in atom_rule_map:
-            atom_values[atom_index] = self._get_initial_atom_value(atoms[atom_index])
+            atom_values[atom_index] = self._get_initial_atom_value(atoms[atom_index]['relation'])
 
         total_loss = 0.0
         for ground_rule in ground_rules:

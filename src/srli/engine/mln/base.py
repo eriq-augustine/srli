@@ -26,13 +26,20 @@ class BaseMLN(srli.engine.base.BaseEngine):
 
         return self._create_results(atom_values, atoms)
 
+    # Offload learning to PSL.
+    def learn(self, **kwargs):
+        engine = srli.engine.psl.engine.PSL(self._relations, self._rules)
+        engine.learn()
+
+        return self
+
     @abc.abstractmethod
     def reason(self, ground_rules, atoms, **kwargs):
         pass
 
-    def _get_initial_atom_value(self, atom):
-        if (atom['relation'].has_negative_prior_weight()):
-            return int(self._rng.random() < atom['relation'].get_negative_prior_weight())
+    def _get_initial_atom_value(self, relation):
+        if (relation.has_negative_prior_weight()):
+            return int(self._rng.random() < relation.get_negative_prior_weight())
 
         return self._rng.randint(0, 1)
 
@@ -51,13 +58,14 @@ class BaseMLN(srli.engine.base.BaseEngine):
             values = []
 
             for row in data:
-                atom_index = atom_map[tuple(row)]
+                key = tuple(row)
 
-                if (atom_index in atom_values):
-                    value = atom_values[atom_index]
+                if ((key in atom_map) and (atom_map[key] in atom_values)):
+                    value = atom_values[atom_map[key]]
                 else:
-                    # An atom not participating in any non-trivial rules.
-                    value = self._get_initial_atom_value(atoms[atom_index])
+                    # An atom not participating in any used ground rules just get a default value.
+                    # This means it appears in ground rules that are not: trivial, priors, or functional constraints.
+                    value = self._get_initial_atom_value(relation)
 
                 values.append(list(row) + [value])
 
