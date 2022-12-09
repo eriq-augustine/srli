@@ -2,6 +2,7 @@ import argparse
 import json
 import os
 import re
+import time
 
 import sklearn.metrics
 
@@ -29,9 +30,13 @@ class Pipeline(object):
         options = dict(self._options)
         options.update(additional_options)
 
+        print('!!!')
+        print(self._evaluations)
+        print('!!!')
+
         engine = engine_type(self._relations, self._rules,
                 weights = self._weights, squared = self._squared,
-                options = options)
+                options = options, evaluations = self._evaluations)
 
         if ((len(self._learn_data) > 0) and (self._learn_data != self._infer_data)):
             self._learn(engine)
@@ -49,10 +54,12 @@ class Pipeline(object):
             'relations': [relation.to_dict() for relation in self._relations],
             'learn_data': {str(relation) : {str(data_type) : paths for (data_type, paths) in data_spec.items()} for (relation, data_spec) in self._learn_data.items()},
             'infer_data': {str(relation) : {str(data_type) : paths for (data_type, paths) in data_spec.items()} for (relation, data_spec) in self._infer_data.items()},
-            'evaluations': [(str(relation), eval_info) for (relation, eval_info) in self._evaluations],
+            'evaluations': [evaluation.to_dict() for evaluation in self._evaluations],
         }, indent = 4)
 
     def _learn(self, engine):
+        print("%d -- Loading learning data." % (int(time.time())))
+
         for relation in self._relations:
             relation.clear_data()
 
@@ -61,9 +68,13 @@ class Pipeline(object):
                 for path in paths:
                     relation.add_data_file(path, data_type = data_type)
 
+        print("%d -- Starting learning engine." % (int(time.time())))
+
         engine.learn()
 
     def _infer(self, engine):
+        print("%d -- Loading inference data." % (int(time.time())))
+
         for relation in self._relations:
             relation.clear_data()
 
@@ -72,22 +83,22 @@ class Pipeline(object):
                 for path in paths:
                     relation.add_data_file(path, data_type = data_type)
 
+        print("%d -- Starting inference engine." % (int(time.time())))
+
         results = engine.solve()
 
         self._eval(results)
 
     def _eval(self, results):
-        for (relation, info) in self._evaluations:
-            if (info == 'CategoricalEvaluator'):
-                expected, predicted, _ = srli.util.get_eval_categories(relation, results[relation])
-                accuracy = sklearn.metrics.accuracy_score(expected, predicted)
-                print('Categorical accuracy for %s: %f' % (relation, accuracy))
-            elif (info == 'DiscreteEvaluator'):
-                expected, predicted = srli.util.get_eval_values(relation, results[relation], discretize = True)
-                f1 = sklearn.metrics.f1_score(expected, predicted)
-                print('F1 for %s: %f' % (relation, f1))
-            else:
-                raise ValueError("Unknown evaluation: '%s'." % (info))
+        print("%d -- Starting evaluation." % (int(time.time())))
+
+        stats = []
+
+        for evaluation in self._evaluations:
+            stats.append((evaluation.metric_name(), evaluation.relation(), evaluation.evaluate(results)))
+
+        for (metric, relation, value) in stats:
+            print('Evaluation Result -- Metric: %s, Relation: %s, Value: %f' % (metric, relation.name(), value))
 
     # TODO(eriq): This assumes the config is syntactically/semantically correct, only minimal error checking is done.
     @staticmethod
@@ -287,24 +298,38 @@ class Pipeline(object):
 
         data[data_type] += new_list
 
-    # TODO(eriq): Options are ignored.
     @staticmethod
     def _parse_evaluations(eval_configs, relation):
+        eval_map = {value : key for (key, value) in srli.engine.psl.engine.PSL.EVAL_MAP.items()}
+
         evaluations = []
 
         for eval_config in eval_configs:
             if (isinstance(eval_config, str)):
-                evaluations.append((relation, eval_config))
+                name = eval_config
+                primary = False
+                options = {}
             elif (isinstance(eval_config, dict)):
-                evaluations.append((relation, eval_config['evaluator']))
+                name = eval_config['evaluator']
+
+                primary = False
+                if ('primary' in eval_config):
+                    primary = bool(eval_config['primary'])
+
+                options = {}
+                if ('options' in eval_config):
+                    options = eval_config['options']
             else:
                 raise ValueError("Unknown eval config: '%s'."% (eval_config))
+
+            if (name not in eval_map):
+                raise ValueError("Unknown eval type: '%s'." % (name))
+
+            evaluations.append(eval_map[name](relation, options = options, primary = primary))
 
         return evaluations
 
 def main(arguments):
-    print(arguments)
-
     options = {}
     if (arguments.options is not None):
         for (key, value) in arguments.options:

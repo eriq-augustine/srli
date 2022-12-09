@@ -7,8 +7,17 @@ import pslpython.predicate
 import pslpython.rule
 
 import srli.engine.base
+import srli.evaluation
 
 class PSL(srli.engine.base.BaseEngine):
+    EVAL_MAP = {
+        srli.evaluation.CategoricalAccuracy: 'CategoricalEvaluator',
+        srli.evaluation.F1: 'DiscreteEvaluator',
+        srli.evaluation.RMSE: 'ContinuousEvaluator',
+        srli.evaluation.AuROC: 'AUCEvaluator',
+        srli.evaluation.AuPRC: 'AUCEvaluator',
+    }
+
     def __init__(self, relations, rules, weights = None, squared = None, **kwargs):
         super().__init__(relations, rules, **kwargs)
 
@@ -66,8 +75,23 @@ class PSL(srli.engine.base.BaseEngine):
         options.update(additional_config)
         model.add_options(options)
 
+        # {relation: [eval, ...], ...}
+        evals_map = {}
+        for evaluation in self._evaluations:
+            if (evaluation.relation() not in evals_map):
+                evals_map[evaluation.relation()] = []
+            evals_map[evaluation.relation()].append(evaluation)
+
         for relation in self._relations:
-            predicate = pslpython.predicate.Predicate(relation.name(), size = relation.arity())
+            evaluations = []
+
+            if (relation in evals_map):
+                for base_evaluation in evals_map[relation]:
+                    evaluation = self._convert_evaluation(base_evaluation)
+                    if (evaluation is not None):
+                        evaluations.append(evaluation)
+
+            predicate = pslpython.predicate.Predicate(relation.name(), size = relation.arity(), evaluations = evaluations)
 
             if (relation.has_observed_data()):
                 predicate.add_observed_data(relation.get_observed_data())
@@ -113,6 +137,16 @@ class PSL(srli.engine.base.BaseEngine):
                 model.add_rule(rule)
 
         return model
+
+    def _convert_evaluation(self, evaluation):
+        if (type(evaluation) not in PSL.EVAL_MAP):
+            return None
+
+        return {
+            'evaluator': PSL.EVAL_MAP[type(evaluation)],
+            'options': evaluation.options(),
+            'primary': evaluation.is_primary(),
+        }
 
     def _find_relation(self, name):
         for relation in self._relations:

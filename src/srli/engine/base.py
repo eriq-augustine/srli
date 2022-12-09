@@ -2,9 +2,10 @@ import abc
 import random
 
 class BaseEngine(abc.ABC):
-    def __init__(self, relations, rules, seed = None, options = {}, **kwargs):
+    def __init__(self, relations, rules, seed = None, evaluations = [], options = {}, **kwargs):
         self._relations = relations
         self._rules = rules
+        self._evaluations = evaluations
         self._options = options
 
         if (seed is None):
