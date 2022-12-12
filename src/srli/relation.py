@@ -10,7 +10,6 @@ class Relation(object):
         UNOBSERVED = 'unobserved'
         TRUTH = 'truth'
 
-
     class SumConstraint(object):
         class SumConstraintComparison(enum.Enum):
             LT = '<'
@@ -24,7 +23,7 @@ class Relation(object):
             self.label_indexes = list(label_indexes)
             self.comparison = comparison
             self.constant = constant
-            self.weight = None
+            self.weight = weight
 
         def resolve_indexes(self, arity):
             """
