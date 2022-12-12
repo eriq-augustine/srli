@@ -10,15 +10,49 @@ class Relation(object):
         UNOBSERVED = 'unobserved'
         TRUTH = 'truth'
 
+
+    class SumConstraint(object):
+        class SumConstraintComparison(enum.Enum):
+            LT = '<'
+            LTE = '<='
+            EQ = '='
+            GTE = '>='
+            GT = '>'
+
+        def __init__(self, label_indexes = [-1], comparison = SumConstraintComparison.EQ,
+                constant = 1, weight = None):
+            self.label_indexes = list(label_indexes)
+            self.comparison = comparison
+            self.constant = constant
+            self.weight = None
+
+        def resolve_indexes(self, arity):
+            """
+            Resolve any negative indexes using the known arity.
+            """
+
+            for i in range(len(self._label_indexes)):
+                if (self._label_indexes[i] < 0):
+                    self._label_indexes[i] += arity
+
+        def to_dict(self):
+            return {
+                'label_indexes': self.label_indexes,
+                'comparison': self.comparison.value,
+                'constant': self.constant,
+                'weight': self.weight,
+            }
+
     # TODO(eriq): Allow more ways of specifying arguments.
     # TODO(eriq): Types are mainly ignored right now.
     # TODO(eriq): Priors can be much more expressive and complicated.
-    def __init__(self, name, arity = None, variable_types = None, negative_prior_weight = None, functional = False):
+    def __init__(self, name, arity = None, variable_types = None,
+            negative_prior_weight = None, sum_constraint = None):
         self._name = name
         self._arity = arity
         self._variable_types = variable_types
         self._negative_prior_weight = negative_prior_weight
-        self._functional = functional
+        self._sum_constraint = sum_constraint
 
         if (self._arity is None and self._variable_types is not None):
             self._arity = len(self._variable_types)
@@ -42,11 +76,14 @@ class Relation(object):
     def is_observed(self):
         return self.has_observed_data() and not self.has_unobserved_data()
 
-    def is_functional(self):
-        return self._functional
+    def sum_constraint(self):
+        return self._sum_constraint
 
-    def set_functional(self, functional):
-        self._functional = functional
+    def has_sum_constraint(self):
+        return self._sum_constraint is not None
+
+    def set_sum_constraint(self, sum_constraint):
+        self._sum_constraint = sum_constraint
 
     def has_negative_prior_weight(self):
         return (self._negative_prior_weight is not None)
@@ -136,7 +173,7 @@ class Relation(object):
         if (self._negative_prior_weight is not None):
             rtn['negative_prior_weight'] = self._negative_prior_weight
 
-        if (self._functional):
-            rtn['functional'] = True
+        if (self._sum_constraint):
+            rtn['sum_constraint'] = self._sum_constraint.to_dict()
 
         return rtn

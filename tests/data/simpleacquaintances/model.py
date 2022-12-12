@@ -16,7 +16,7 @@ DATA_DIR = os.path.join(THIS_DIR, 'data')
 
 ENGINE_OPTIONS = {
     srli.engine.mln.native.NativeMLN: {
-        'max_flips': 250
+        'max_flips': 350
     }
 }
 
@@ -60,7 +60,7 @@ class SimpleAcquaintancesModel(tests.data.base.TestModel):
             'Knows': {
                 'size': 118,
                 'min_metrics': {
-                    'f1': 0.50,
+                    'f1': 0.35,
                 }
             }
         }

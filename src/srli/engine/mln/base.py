@@ -18,7 +18,7 @@ class BaseMLN(srli.engine.base.BaseEngine):
         # Specifically ground with only hard constraints so arithmetic == is not turned into <= and >=.
         grounding_rules = [srli.rule.Rule(rule.text()) for rule in self._rules]
         engine = srli.engine.psl.engine.PSL(self._relations, grounding_rules)
-        ground_program = engine.ground(ignore_priors = True, ignore_functional = True)
+        ground_program = engine.ground(ignore_priors = True, ignore_sum_constraint = True)
 
         ground_rules, atoms = self._process_ground_program(ground_program)
 
@@ -64,7 +64,7 @@ class BaseMLN(srli.engine.base.BaseEngine):
                     value = atom_values[atom_map[key]]
                 else:
                     # An atom not participating in any used ground rules just get a default value.
-                    # This means it appears in ground rules that are not: trivial, priors, or functional constraints.
+                    # This means it appears in ground rules that are not: trivial, priors, or sum constraints.
                     value = self._get_initial_atom_value(relation)
 
                 values.append(list(row) + [value])

@@ -54,11 +54,11 @@ class PSL(srli.engine.base.BaseEngine):
 
         return self
 
-    def ground(self, additional_config = {}, ignore_priors = False, ignore_functional = False, transform_config = None, **kwargs):
-        model = self._prep_model(additional_config, ignore_priors, ignore_functional)
+    def ground(self, additional_config = {}, ignore_priors = False, ignore_sum_constraint = False, transform_config = None, **kwargs):
+        model = self._prep_model(additional_config, ignore_priors, ignore_sum_constraint)
         return model.ground(transform_config = transform_config)
 
-    def _prep_model(self, additional_config = {}, ignore_priors = False, ignore_functional = False):
+    def _prep_model(self, additional_config = {}, ignore_priors = False, ignore_sum_constraint = False):
         model = pslpython.model.Model(str(uuid.uuid4()))
 
         options = dict(self._options)
@@ -112,19 +112,34 @@ class PSL(srli.engine.base.BaseEngine):
                 rule = pslpython.rule.Rule(rule_text, weighted = True, weight = relation.get_negative_prior_weight(), squared = True)
                 model.add_rule(rule)
 
-        # Add in functional constraints.
-        # TODO(eriq): There are several assumption here, e.g., hard weight, summation on last arg, etc.
-        if (not ignore_functional):
+        # Add in sum constraints.
+        if (not ignore_sum_constraint):
             for relation in self._relations:
-                if (not relation.is_functional()):
+                if (not relation.has_sum_constraint()):
                     continue
 
-                arguments = list(string.ascii_uppercase[0:relation.arity()])
-                arguments[-1] = '+' + arguments[-1]
-                arguments = ', '.join(arguments)
-                rule_text = "%s(%s) = 1.0" % (relation.name(), arguments)
+                sum_constraint = relation.sum_constraint()
 
-                rule = pslpython.rule.Rule(rule_text, weighted = False)
+                # Build arguments, and prefix a summation to label arguments.
+                arguments = list(string.ascii_uppercase[0:relation.arity()])
+                for label_index in sum_constraint.label_indexes:
+                    arguments[label_index] = '+' + arguments[label_index]
+                arguments = ', '.join(arguments)
+
+                comparison = sum_constraint.comparison
+                # PSL does not use < or >, just approximate.
+                if (comparison == srli.relation.Relation.SumConstraint.SumConstraintComparison.LT):
+                    comparison = srli.relation.Relation.SumConstraint.SumConstraintComparison.LTE
+                elif (comparison == srli.relation.Relation.SumConstraint.SumConstraintComparison.GT):
+                    comparison = srli.relation.Relation.SumConstraint.SumConstraintComparison.GTE
+
+                rule_text = "%s(%s) %s %s" % (relation.name(), arguments, comparison.value, sum_constraint.constant)
+
+                if (sum_constraint.weight == None):
+                    rule = pslpython.rule.Rule(rule_text, weighted = False)
+                else:
+                    rule = pslpython.rule.Rule(rule_text, weighted = True, weight = sum_constraint.weight)
+
                 model.add_rule(rule)
 
         return model

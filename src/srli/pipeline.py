@@ -164,6 +164,10 @@ class Pipeline(object):
                     relation_map[name].set_negative_prior_weight(weight)
                     continue
 
+                # Check for a sum constraint.
+                if (Pipeline._parse_sum_constraint(base_rule, relation_map, weight)):
+                    continue
+
                 rules.append(srli.rule.Rule(base_rule, weight = weight, squared = (modifier == '^2')))
 
                 continue
@@ -174,11 +178,8 @@ class Pipeline(object):
 
                 base_rule = match.group(1).strip()
 
-                # Check for a functional constraint.
-                match = re.search(r'^(\w+)\([^\)]+\+[^\)]*\)\s*=\s*1(\.0)?$', base_rule)
-                if (match is not None):
-                    name = match.group(1).upper()
-                    relation_map[name].set_functional(True)
+                # Check for a sum constraint.
+                if (Pipeline._parse_sum_constraint(base_rule, relation_map, None)):
                     continue
 
                 rules.append(srli.rule.Rule(base_rule))
@@ -188,6 +189,35 @@ class Pipeline(object):
             raise ValueError("Could not parse rule: [%s]." % (base_rule))
 
         return rules
+
+    @staticmethod
+    def _parse_sum_constraint(base_rule, relation_map, weight):
+        """
+        Return True if a summation constraint was parsed and added to the relevant relation.
+        False otherwise.
+        """
+
+        match = re.search(r'([^\(]+)\(\s*([^\)]+)\s*\)\s*([<>=]+)\s*(\d+(?:\.\d+)?)$', base_rule.upper())
+        if (match is None):
+            return False
+
+        name = match.group(1).upper()
+        raw_args = match.group(2)
+        comparison = srli.relation.Relation.SumConstraint.SumConstraintComparison(match.group(3))
+        constant = float(match.group(4))
+
+        label_indexes = []
+        split_args = [arg.strip() for arg in raw_args.split(',')]
+        for i in range(len(split_args)):
+            if (split_args[i].startswith('+')):
+                label_indexes.append(i)
+
+        sum_constraint = srli.relation.Relation.SumConstraint(label_indexes = label_indexes,
+                comparison = comparison, constant = constant, weight = weight)
+
+        relation_map[name].set_sum_constraint(sum_constraint)
+
+        return True
 
     @staticmethod
     def _parse_relations(config, base_path):
