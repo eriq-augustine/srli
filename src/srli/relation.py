@@ -53,21 +53,28 @@ class Relation(object):
         self._negative_prior_weight = negative_prior_weight
         self._sum_constraint = sum_constraint
 
-        if (self._arity is None and self._variable_types is not None):
+        if ((self._arity is None) and (self._variable_types is not None)):
             self._arity = len(self._variable_types)
+
+        if ((self._arity is None) or (self._arity <= 0)):
+            raise ValueError("Arity for relation (%s) must be > 0, found: %s.", self._name, str(self._arity))
 
         if (self._arity > MAX_ARITY):
             raise ValueError("%s -- Relation arity too large, must be <= %d." % (str(self), MAX_ARITY))
 
-        self.clear_data()
+        if ((self._variable_types is not None) and (self._arity != len(self._variable_types))):
+            raise ValueError("Relation's (%s) arity (%d) must be consistent with length of variables types (%d)." % (self._name, self._arity, len(self._variable_types)))
 
-        assert(self._arity is not None and self._arity > 0)
+        self.clear_data()
 
     def arity(self):
         return self._arity
 
     def variable_types(self):
         return self._variable_types
+
+    def set_variable_types(self, variable_types):
+        self._variable_types = variable_types
 
     def name(self):
         return self._name
@@ -174,5 +181,8 @@ class Relation(object):
 
         if (self._sum_constraint):
             rtn['sum_constraint'] = self._sum_constraint.to_dict()
+
+        if (self._variable_types is not None):
+            rtn['variable_type'] = self._variable_types
 
         return rtn

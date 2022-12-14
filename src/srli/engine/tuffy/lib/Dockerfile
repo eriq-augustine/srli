@@ -20,4 +20,4 @@ COPY tuffy.conf /tuffy/
 COPY run-tuffy.sh /tuffy/
 RUN chmod 777 /tuffy/run-tuffy.sh
 
-ENTRYPOINT /tuffy/run-tuffy.sh
+ENTRYPOINT ["/tuffy/run-tuffy.sh"]

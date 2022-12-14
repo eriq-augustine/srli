@@ -26,26 +26,38 @@ class Tuffy(srli.engine.base.BaseEngine):
     Run Tuffy in a Docker container.
     """
 
-    def __init__(self, relations, rules, **kwargs):
+    def __init__(self, relations, rules, cleanup_files = True, **kwargs):
         super().__init__(relations, rules, **kwargs)
 
-    def solve(self, cleanup_files = True, **kwargs):
-        temp_dir = tempfile.mkdtemp(prefix = TEMP_DIR_PREFIX)
+        self._cleanup_files = cleanup_files
 
-        program_path = os.path.join(temp_dir, PROGRAM_FILENAME)
-        evidence_path = os.path.join(temp_dir, EVIDENCE_FILENAME)
-        query_path = os.path.join(temp_dir, QUERY_FILENAME)
-        output_path = os.path.join(temp_dir, OUTPUT_FILENAME)
+        missing_types = False
+        for relation in self._relations:
+            if (relation.variable_types() is None):
+                missing_types = True
 
-        self._write_program(program_path)
-        self._write_evidence(evidence_path)
-        self._write_query(query_path)
+        if (missing_types):
+            print("Warning: Required types are missing for Tuffy, inferring types.")
+            self._infer_variable_types()
+
+    def learn(self, **kwargs):
+        temp_dir, output_path = self._prep_run()
+
+        self._run_tuffy(temp_dir, additional_args = ['-learnwt'])
+        weights = self._parse_weights(output_path)
+
+        for i in range(len(self._rules)):
+            self._rules[i].set_weight(weights[i])
+
+        self._cleanup(temp_dir)
+
+    def solve(self, **kwargs):
+        temp_dir, output_path = self._prep_run()
 
         self._run_tuffy(temp_dir)
         raw_results = self._read_results(output_path)
 
-        if (cleanup_files):
-            shutil.rmtree(temp_dir)
+        self._cleanup(temp_dir)
 
         results = {}
         for relation in self._relations:
@@ -63,6 +75,24 @@ class Tuffy(srli.engine.base.BaseEngine):
 
         return results
 
+    def _prep_run(self):
+        temp_dir = tempfile.mkdtemp(prefix = TEMP_DIR_PREFIX)
+
+        program_path = os.path.join(temp_dir, PROGRAM_FILENAME)
+        evidence_path = os.path.join(temp_dir, EVIDENCE_FILENAME)
+        query_path = os.path.join(temp_dir, QUERY_FILENAME)
+        output_path = os.path.join(temp_dir, OUTPUT_FILENAME)
+
+        self._write_program(program_path)
+        self._write_evidence(evidence_path)
+        self._write_query(query_path)
+
+        return temp_dir, output_path
+
+    def _cleanup(self, temp_dir):
+        if (self._cleanup_files):
+            shutil.rmtree(temp_dir)
+
     def _write_file(self, path, lines):
         with open(path, 'w') as file:
             for line in lines:
@@ -73,6 +103,61 @@ class Tuffy(srli.engine.base.BaseEngine):
             if (relation.name().lower() == name.lower()):
                 return relation
         return None
+
+    def _parse_weights(self, path):
+        new_weights = [False] * len(self._rules)
+
+        relation_map = {relation.name().upper() : relation for relation in self._relations}
+
+        with open(path, 'r') as file:
+            skip = True
+
+            for line in file:
+                if ('WEIGHT OF LAST ITERATION' in line):
+                    skip = False
+                    continue
+                elif (skip):
+                    continue
+
+                line = line.strip()
+                if (line == ''):
+                    continue
+
+                # Check for priors first.
+                match = re.search(r'^(-?\d+(?:\.\d+))\s+!(\w+)\([^\)]+\)\s+\/\/(\d+\.0)$', line)
+                if (match is not None):
+                    weight = float(match.group(1))
+                    relation_name = match.group(2).upper()
+
+                    if (relation_name not in relation_map):
+                        raise ValueError("Could not find relation (%s) found in prior: '%s'." % (relation_name, line))
+
+                    relation_map[relation_name].set_negative_prior_weight(weight)
+
+                    continue
+
+                # Soft rules.
+                match = re.search(r'^(-?\d+(?:\.\d+))\s+.+?\s+\/\/(\d+\.0)$', line)
+                if (match is not None):
+                    weight = float(match.group(1))
+                    index = int(float(match.group(2))) - 1
+
+                    new_weights[index] = weight
+
+                    continue
+
+                # Hard rules.
+                match = re.search(r' \. \/\/(\d+\.0)hardfixed$', line)
+                if (match is not None):
+                    index = int(float(match.group(1))) - 1
+
+                    new_weights[index] = None
+
+                    continue
+
+                raise ValueError("Could not parse learned Tuffy weight from output rule: '%s'." % (line))
+
+        return new_weights
 
     def _read_results(self, path, has_value = False):
         results = {}
@@ -181,7 +266,7 @@ class Tuffy(srli.engine.base.BaseEngine):
         self._write_file(path, query)
 
     # TODO(eriq): There are several alternate paths to using Docker (e.g. a prebuilt image).
-    def _run_tuffy(self, io_dir):
+    def _run_tuffy(self, io_dir, additional_args = []):
         client = docker.from_env()
 
         # Build the image (Docker's cache will be used for subsequent runs).
@@ -201,5 +286,14 @@ class Tuffy(srli.engine.base.BaseEngine):
             },
         }
 
-        client.containers.run(DOCKER_TAG, volumes = volumes, name = DOCKER_TAG,
-                remove = True, network_disabled = True)
+        # Ideally we would disable all networking (network_disabled = True),
+        # but Tuffy will throw an error.
+        container = client.containers.run(DOCKER_TAG, command = additional_args, volumes = volumes, name = DOCKER_TAG,
+                remove = True, network_disabled = False,
+                detach = True)
+
+        for line in container.logs(stream = True):
+            print(line.decode(), end = '')
+        print()
+
+        container.wait()

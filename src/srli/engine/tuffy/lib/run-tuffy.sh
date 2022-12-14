@@ -39,18 +39,11 @@ function run_tuffy() {
         -mln "${PROGRAM_PATH}" \
         -evidence "${EVIDENCE_PATH}" \
         -queryFile "${QUERY_PATH}" \
-        -result "${OUTPUT_PATH}"
-
-    echo "--- RESULTS ---"
-    cat "${OUTPUT_PATH}"
+        -result "${OUTPUT_PATH}" \
+        "$@"
 }
 
 function main() {
-    if [[ $# -ne 0 ]]; then
-        echo "USAGE: $0"
-        exit 1
-    fi
-
     set -e
     trap exit SIGINT
 
