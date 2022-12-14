@@ -51,6 +51,8 @@ class Tuffy(srli.engine.base.BaseEngine):
 
         self._cleanup(temp_dir)
 
+        return self
+
     def solve(self, **kwargs):
         temp_dir, output_path = self._prep_run()
 
@@ -68,10 +70,13 @@ class Tuffy(srli.engine.base.BaseEngine):
 
             for row in relation.get_unobserved_data():
                 key = tuple(row[0:relation.arity()])
-                if (key in raw_results[relation]):
-                    results[relation].append(list(key) + [raw_results[relation][key]])
-                else:
+
+                # The relation may not be in the results if Tuffy outputs no true values,
+                # and the key may not be in the results if its specific value is false.
+                if ((relation not in raw_results) or (key not in raw_results[relation])):
                     results[relation].append(list(key) + [0.0])
+                else:
+                    results[relation].append(list(key) + [raw_results[relation][key]])
 
         return results
 
@@ -105,7 +110,7 @@ class Tuffy(srli.engine.base.BaseEngine):
         return None
 
     def _parse_weights(self, path):
-        new_weights = [False] * len(self._rules)
+        ordered_weights = []
 
         relation_map = {relation.name().upper() : relation for relation in self._relations}
 
@@ -124,7 +129,7 @@ class Tuffy(srli.engine.base.BaseEngine):
                     continue
 
                 # Check for priors first.
-                match = re.search(r'^(-?\d+(?:\.\d+))\s+!(\w+)\([^\)]+\)\s+\/\/(\d+\.0)$', line)
+                match = re.search(r'^(-?\d+(?:\.\d+))\s+!(\w+)\([^\)]+\)\s+\/\/(\d+\.\d+)$', line)
                 if (match is not None):
                     weight = float(match.group(1))
                     relation_name = match.group(2).upper()
@@ -137,27 +142,28 @@ class Tuffy(srli.engine.base.BaseEngine):
                     continue
 
                 # Soft rules.
-                match = re.search(r'^(-?\d+(?:\.\d+))\s+.+?\s+\/\/(\d+\.0)$', line)
+                match = re.search(r'^(-?\d+(?:\.\d+))\s+.+?\s+\/\/(\d+\.\d+)$', line)
                 if (match is not None):
                     weight = float(match.group(1))
-                    index = int(float(match.group(2))) - 1
+                    index = float(match.group(2))
 
-                    new_weights[index] = weight
+                    ordered_weights.append((index, weight))
 
                     continue
 
                 # Hard rules.
-                match = re.search(r' \. \/\/(\d+\.0)hardfixed$', line)
+                match = re.search(r' \. \/\/(\d+\.\d+)hardfixed$', line)
                 if (match is not None):
-                    index = int(float(match.group(1))) - 1
+                    index = float(match.group(1))
 
-                    new_weights[index] = None
+                    ordered_weights.append((index, None))
 
                     continue
 
                 raise ValueError("Could not parse learned Tuffy weight from output rule: '%s'." % (line))
 
-        return new_weights
+        # Sort the weights according to the index output by Tuffy, which should match the order they were inserted.
+        return [weight for (index, weight) in sorted(ordered_weights)]
 
     def _read_results(self, path, has_value = False):
         results = {}
@@ -205,7 +211,10 @@ class Tuffy(srli.engine.base.BaseEngine):
             rule = self._rules[i].text()
             rule = rule.replace('&', ',')
             rule = rule.replace('->', '=>')
+            rule = rule.replace('>>', '=>')
             rule = rule.replace(' = ', ' => ')
+            # Constants can use double quotes.
+            rule = rule.replace('\'', '"')
             rule = re.sub(r',\s*\(\w+\s*!=\s*\w+\)', '', rule)
 
             # TODO(eriq): Rule variables must be all lower case.
