@@ -17,7 +17,8 @@ class PySATMLN(srli.engine.mln.base.BaseMLN):
         ground_rules, atoms = self._adjust_atom_ids(ground_rules, atoms)
 
         cnf = self._create_cnf(ground_rules, atoms)
-        rc2 = pysat.examples.rc2.RC2Stratified(cnf, solver = 'Gluecard4')
+        rc2 = pysat.examples.rc2.RC2Stratified(cnf, solver = 'Gluecard4',
+                adapt = True, exhaust = True, minz = True, trim = 10)
         solution = rc2.compute()
 
         # Construct the results: {atom_id: value, ...}.

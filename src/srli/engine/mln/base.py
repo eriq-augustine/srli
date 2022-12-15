@@ -22,6 +22,8 @@ class BaseMLN(srli.engine.base.BaseEngine):
 
         ground_rules, atoms = self._process_ground_program(ground_program)
 
+        print("Building an MLN with %d ground rules and %d variables." % (len(ground_rules), len(atoms)))
+
         atom_values = self.reason(ground_rules, atoms, **kwargs)
 
         return self._create_results(atom_values, atoms)
