@@ -1,5 +1,6 @@
 import csv
 import enum
+import math
 import string
 
 MAX_ARITY = len(string.ascii_uppercase)
@@ -33,6 +34,9 @@ class Relation(object):
             for i in range(len(self._label_indexes)):
                 if (self._label_indexes[i] < 0):
                     self._label_indexes[i] += arity
+
+        def is_hard_functional(self):
+            return (self.comparison == self.SumConstraintComparison.EQ) and math.isclose(1.0, self.constant) and (self.weight is None)
 
         def to_dict(self):
             return {

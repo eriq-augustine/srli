@@ -3,6 +3,7 @@ import re
 import shutil
 import string
 import tempfile
+import uuid
 
 import docker
 
@@ -40,26 +41,33 @@ class Tuffy(srli.engine.base.BaseEngine):
             print("Warning: Required types are missing for Tuffy, inferring types.")
             self._infer_variable_types()
 
-    def learn(self, **kwargs):
+    def learn(self, max_iterations = None, **kwargs):
         temp_dir, output_path = self._prep_run()
 
-        self._run_tuffy(temp_dir, additional_args = ['-learnwt'])
-        weights = self._parse_weights(output_path)
+        args = ['-learnwt']
+
+        if (max_iterations is not None):
+            args += ['-dMaxIter', str(max_iterations)]
+
+        try:
+            self._run_tuffy(temp_dir, additional_args = args)
+            weights = self._parse_weights(output_path)
+        finally:
+            self._cleanup(temp_dir)
 
         for i in range(len(self._rules)):
             self._rules[i].set_weight(weights[i])
-
-        self._cleanup(temp_dir)
 
         return self
 
     def solve(self, **kwargs):
         temp_dir, output_path = self._prep_run()
 
-        self._run_tuffy(temp_dir)
-        raw_results = self._read_results(output_path)
-
-        self._cleanup(temp_dir)
+        try:
+            self._run_tuffy(temp_dir)
+            raw_results = self._read_results(output_path)
+        finally:
+            self._cleanup(temp_dir)
 
         results = {}
         for relation in self._relations:
@@ -105,7 +113,7 @@ class Tuffy(srli.engine.base.BaseEngine):
 
     def _find_relation(self, name):
         for relation in self._relations:
-            if (relation.name().lower() == name.lower()):
+            if (relation.name().upper() == name.upper()):
                 return relation
         return None
 
@@ -199,7 +207,15 @@ class Tuffy(srli.engine.base.BaseEngine):
 
         for relation in self._relations:
             has_prior |= relation.has_negative_prior_weight()
-            predicate = "%s(%s)" % (relation.name(), ', '.join(map(str, relation.variable_types())))
+
+            arguments = list(map(str, relation.variable_types()))
+
+            # Check for a hard summation constraint.
+            if (relation.has_sum_constraint() and relation.sum_constraint().is_hard_functional()):
+                for index in relation.sum_constraint().label_indexes:
+                    arguments[index] += '!'
+
+            predicate = "%s(%s)" % (relation.name().upper(), ', '.join(arguments))
 
             if (relation.is_observed()):
                 predicate = '*' + predicate
@@ -220,8 +236,9 @@ class Tuffy(srli.engine.base.BaseEngine):
             # TODO(eriq): Rule variables must be all lower case.
             # HACK(eriq): This method is very quick and dirty.
             rule = rule.lower()
+
             for relation in self._relations:
-                rule = rule.replace(relation.name().lower(), relation.name())
+                rule = re.sub(r'\b' + relation.name().lower() + r'\b', relation.name().upper(), rule)
 
             if (self._rules[i].is_weighted()):
                 program.append("%f %s" % (self._rules[i].weight(), rule))
@@ -234,7 +251,7 @@ class Tuffy(srli.engine.base.BaseEngine):
             for relation in self._relations:
                 if (relation.has_negative_prior_weight()):
                     arguments = ', '.join([value for value in string.ascii_lowercase[0:relation.arity()]])
-                    program.append("%f !%s(%s)" % (relation.get_negative_prior_weight(), relation.name(), arguments))
+                    program.append("%f !%s(%s)" % (relation.get_negative_prior_weight(), relation.name().upper(), arguments))
 
         self._write_file(path, program)
 
@@ -249,7 +266,7 @@ class Tuffy(srli.engine.base.BaseEngine):
                 # Tuffy args cannot have spaces.
                 row = list(map(lambda argument: argument.replace(' ', '_'), row))
 
-                line = "%s(%s)" % (relation.name(), ', '.join(map(str, row[0:relation.arity()])))
+                line = "%s(%s)" % (relation.name().upper(), ', '.join(map(str, row[0:relation.arity()])))
 
                 if (len(row) > relation.arity()):
                     line = "%f %s" % (float(row[-1]), line)
@@ -269,23 +286,16 @@ class Tuffy(srli.engine.base.BaseEngine):
                 # Tuffy args cannot have spaces.
                 row = list(map(lambda argument: argument.replace(' ', '_'), row))
 
-                line = "%s(%s)" % (relation.name(), ', '.join(map(str, row[0:relation.arity()])))
+                line = "%s(%s)" % (relation.name().upper(), ', '.join(map(str, row[0:relation.arity()])))
                 query.append(line)
 
         self._write_file(path, query)
 
-    # TODO(eriq): There are several alternate paths to using Docker (e.g. a prebuilt image).
     def _run_tuffy(self, io_dir, additional_args = []):
         client = docker.from_env()
 
         # Build the image (Docker's cache will be used for subsequent runs).
         client.images.build(path = LIB_DIR, tag = DOCKER_TAG, rm = True, quiet = False)
-
-        try:
-            container = client.containers.get(DOCKER_TAG)
-            container.remove()
-        except docker.errors.NotFound as ex:
-            pass
 
         # Run the container with the temp dir as a mount.
         volumes = {
@@ -295,14 +305,30 @@ class Tuffy(srli.engine.base.BaseEngine):
             },
         }
 
-        # Ideally we would disable all networking (network_disabled = True),
-        # but Tuffy will throw an error.
-        container = client.containers.run(DOCKER_TAG, command = additional_args, volumes = volumes, name = DOCKER_TAG,
-                remove = True, network_disabled = False,
-                detach = True)
+        container_id = DOCKER_TAG + '_' + str(uuid.uuid4())
+        container = None
 
-        for line in container.logs(stream = True):
-            print(line.decode(), end = '')
-        print()
+        try:
+            # Ideally we would disable all networking (network_disabled = True),
+            # but Tuffy will throw an error.
+            container = client.containers.run(DOCKER_TAG, command = additional_args, volumes = volumes, name = container_id,
+                    remove = True, network_disabled = False,
+                    detach = True)
 
-        container.wait()
+            for line in container.logs(stream = True):
+                print(line.decode(), end = '')
+            print()
+        except Exception as ex:
+            if (container is not None):
+                print('Tuffy container failed to run, dumping remaining log.')
+                logs = container.logs()
+                if (logs is not None):
+                    for line in logs:
+                        print(line.decode(), end = '')
+                    print()
+
+            raise ex
+        finally:
+            if (container is not None):
+                container.wait()
+                container = None
