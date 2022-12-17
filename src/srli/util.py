@@ -1,3 +1,5 @@
+import json
+
 DEFAULT_TRUTH_THRESHOLD = 0.5
 
 # TODO(eriq): There are some assumptions made here about the format of the data (e.g. a truth column at the end).
@@ -62,3 +64,18 @@ def get_eval_categories(relation, results, label_indexes = [-1]):
     predicted = [predicted_values[entity][0] for entity in entities]
 
     return expected, predicted, entities
+
+def load_json_with_comments(path):
+    contents = []
+    with open(path, 'r') as file:
+        for line in file:
+            line = line.strip()
+            if (line == '' or line.startswith('#') or line.startswith('//')):
+                continue
+
+            if ('/*' in line):
+                raise ValueError("Multi-line comments ('/* ... */') not allowed.")
+
+            contents.append(line)
+
+    return json.loads(' '.join(contents))

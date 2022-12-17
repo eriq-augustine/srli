@@ -2,16 +2,7 @@ import sys
 
 import lark
 
-CONJUNCTION = 'AND'
-DISJUNCTION = 'OR'
-
-TERM_OP_RELATION_NAME = '__srli.term_op__'
-TERM_OPERATOR_NEQ = '!='
-
-KEY_OPERATION = 'operation'
-KEY_NEGATED = 'negated'
-KEY_RELATION = 'relation_name'
-KEY_ARGUMENTS = 'arguments'
+import srli.pipeline
 
 GRAMMAR = '''
     %import common.CNAME
@@ -63,6 +54,7 @@ GRAMMAR = '''
                     | term_operation
 
     ?term_operation: _LPAREN term NEQ term _RPAREN
+                   |         term NEQ term
 
     atom: relation _LPAREN term (_COMMA term)* _RPAREN
 
@@ -85,10 +77,10 @@ GRAMMAR = '''
     _LPAREN : "("
     MINUS   : "-"
     NEQ     : "!="
-    NOT     : "!"
+    NOT     : "!" | "~"
     _OR     : "|"
     _RPAREN : ")"
-    _THEN   : "->"
+    _THEN   : "->" | ">>"
     _SQUOTE : "'"
     _DQUOTE : "\\""
 '''
@@ -299,16 +291,20 @@ def parse(rule):
 
     return cleanAST
 
-def main(rule):
-    print(parse(rule))
+def main(path):
+    pipeline = srli.pipeline.Pipeline.from_psl_config(path)
+
+    for rule in pipeline._rules:
+        print("Input: " + rule.text())
+        print("Output: " + str(parse(rule.text())))
 
 def _load_args(args):
     executable = args.pop(0)
-    if (len(args) == 0 or ({'h', 'help'} & {arg.lower().strip().replace('-', '') for arg in args})):
-        print("USAGE: python3 %s <rule>" % (executable), file = sys.stderr)
+    if (len(args) != 1 or ({'h', 'help'} & {arg.lower().strip().replace('-', '') for arg in args})):
+        print("USAGE: python3 %s <json config path>" % (executable), file = sys.stderr)
         sys.exit(1)
 
-    return ' '.join(args)
+    return args.pop(0)
 
 if (__name__ == '__main__'):
     main(_load_args(sys.argv))

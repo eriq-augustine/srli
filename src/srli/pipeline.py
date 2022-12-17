@@ -95,20 +95,7 @@ class Pipeline(object):
     # TODO(eriq): This assumes the config is syntactically/semantically correct, only minimal error checking is done.
     @staticmethod
     def from_psl_config(path):
-        contents = []
-        with open(path, 'r') as file:
-            for line in file:
-                line = line.strip()
-                if (line == '' or line.startswith('#') or line.startswith('//')):
-                    continue
-
-                if ('/*' in line):
-                    raise ValueError("Multi-line comments ('/* ... */') not allowed.")
-
-                contents.append(line)
-
-        config = json.loads(' '.join(contents))
-
+        config = srli.util.load_json_with_comments(path)
         base_path = os.path.dirname(path)
 
         options = Pipeline._parse_options(config)
