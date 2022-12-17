@@ -5,6 +5,9 @@ import lark
 CONJUNCTION = 'AND'
 DISJUNCTION = 'OR'
 
+TERM_OP_RELATION_NAME = '__srli.term_op__'
+TERM_OPERATOR_NEQ = '!='
+
 KEY_OPERATION = 'operation'
 KEY_NEGATED = 'negated'
 KEY_RELATION = 'relation_name'
@@ -19,6 +22,9 @@ GRAMMAR = '''
     %ignore WS
 
     ?rule: implication
+         | linear_relation
+
+    // Logical
 
     implication: conjunction _THEN disjunction
 
@@ -34,106 +40,251 @@ GRAMMAR = '''
     ?disjunct: atom_expression
              | _LPAREN disjunction _RPAREN
 
+    // Arithmetic
+
+    linear_relation: linear_combination relational_op linear_combination
+
+    ?linear_combination: atom_value
+                       | linear_combination addition_op atom_value
+
+    atom_value: atom
+              | SIGNED_NUMBER
+
+    ?relational_op: EQ
+
+    ?addition_op: ADD
+                | MINUS
+
+    // Atom
+
     ?atom_expression: atom
                     | NOT atom_expression -> negation
                     | _LPAREN atom_expression _RPAREN
+                    | term_operation
+
+    ?term_operation: _LPAREN term NEQ term _RPAREN
 
     atom: relation _LPAREN term (_COMMA term)* _RPAREN
 
     ?relation: IDENTIFIER
 
-    ?term: variable
-         | constant
+    term: variable
+        | constant
 
     ?variable: IDENTIFIER
 
-    ?constant: ESCAPED_STRING
+    ?constant: _SQUOTE /[^']+/ _SQUOTE
+             | _DQUOTE /[^"]+/ _DQUOTE
 
     IDENTIFIER: CNAME
 
+    ADD     : "+"
     _AND    : "&"
     _COMMA  : ","
+    EQ      : "==" | "="
     _LPAREN : "("
-    NOT    : "!"
+    MINUS   : "-"
+    NEQ     : "!="
+    NOT     : "!"
     _OR     : "|"
     _RPAREN : ")"
     _THEN   : "->"
+    _SQUOTE : "'"
+    _DQUOTE : "\\""
 '''
 
-class Implication(tuple):
-    def get_atoms(self, atoms = None):
-        for operand in self:
-            atoms = operand.get_atoms(atoms)
+class DNF(object):
+    def __init__(self, components):
+        self.atoms = []
+        self.term_operations = []
 
-        return atoms
-
-    def __str__(self):
-        return self.__repr__()
-
-    def __repr__(self):
-        return 'Implication(' + ', '.join(map(repr, self)) + ')'
-
-class Conjunction(tuple):
-    def get_atoms(self, atoms = None):
-        for operand in self:
-            atoms = operand.get_atoms(atoms)
-
-        return atoms
-
-    def __str__(self):
-        return self.__repr__()
+        for component in components:
+            if (isinstance(component, Atom)):
+                self.atoms.append(component)
+            elif (isinstance(component, TermOperation)):
+                self.term_operations.append(component)
+            else:
+                raise ValueError("Unknown DNF component type (%s): %s." % (type(component), component))
 
     def __repr__(self):
-        return 'Conjunction(' + ', '.join(map(repr, self)) + ')'
+        return "%s :: {%s}" % (' | '.join(map(str, self.atoms)), ', '.join(map(str, self.term_operations)))
 
-class Disjunction(tuple):
-    def get_atoms(self, atoms = None):
-        for operand in self:
-            atoms = operand.get_atoms(atoms)
+class LinearRelation(object):
+    """
+    SUM(|atoms|) |operator| |constant|
+    """
+    def __init__(self, operator, constant, components):
+        self.operator = operator
+        self.constant = constant
 
-        return atoms
+        self.atoms = []
+        self.term_operations = []
 
-    def __str__(self):
-        return self.__repr__()
-
-    def __repr__(self):
-        return 'Disjunction(' + ', '.join(map(repr, self)) + ')'
-
-class Atom(dict):
-    def get_atoms(self, atoms = None):
-        if (atoms is None):
-            atoms = []
-
-        atoms.append(self)
-        return atoms
-
-    def __str__(self):
-        return self.__repr__()
+        for component in components:
+            if (isinstance(component, Atom)):
+                self.atoms.append(component)
+            elif (isinstance(component, TermOperation)):
+                self.term_operations.append(component)
+            else:
+                raise ValueError("Unknown LinearRelation component type (%s): %s." % (type(component), component))
 
     def __repr__(self):
-        return 'Atom{' + ', '.join([str(key) + ':' + str(value) for (key, value) in self.items()]) + '}'
+        return "%s %s %f :: {%s}" % (' + '.join(map(str, self.atoms)), self.operator, self.constant, ', '.join(map(str, self.term_operations)))
+
+class Atom(object):
+    def __init__(self, relation, arguments, modifier = 1, logical = True):
+        self.relation = relation
+        self.arguments = arguments
+        self.modifier = modifier
+        self.logical = logical
+
+    def flip(self):
+        self.modifier = -self.modifier
+        return self
+
+    def __repr__(self):
+        modifier = ''
+        if (self.logical and (self.modifier < 0)):
+            modifier = '!'
+        elif ((not self.logical) and (self.modifier != 1)):
+            modifier = str(self.modifier) + ' * '
+
+        return "%s%s(%s)" % (modifier, self.relation, ', '.join(self.arguments))
+
+class TermOperation(object):
+    def __init__(self, operator, arguments):
+        self.operator = operator
+        self.arguments = arguments
+        self.logical = False
+
+    def flip(self):
+        # These operations are never flipped.
+        return self
+
+    def __repr__(self):
+        return "(%s %s %s)" % (self.arguments[0], self.operator, self.arguments[1])
+
+class Variable(str):
+    pass
+
+class Constant(str):
+    def __str__(self):
+        return "'" + self.replace("'", "\\'") + "'"
+
+def _make_list(element):
+    if (isinstance(element, list)):
+        return list(element)
+
+    return [element]
 
 class CleanTree(lark.Transformer):
+    # Logical
+
     def implication(self, elements):
-        return Implication([elements[0], elements[1]])
+        conjuncts = _make_list(elements[0])
+        disjuncts = _make_list(elements[1])
 
+        for conjunct in conjuncts:
+            disjuncts.append(conjunct.flip())
+
+        return DNF(disjuncts)
+
+    # Return: [atom, ...]
     def conjunction(self, elements):
-        return Conjunction(list(elements))
+        conjuncts = []
 
+        for element in elements:
+            if (isinstance(element, list)):
+                for subelement in element:
+                    conjuncts.append(subelement)
+            else:
+                conjuncts.append(element)
+
+        return conjuncts
+
+    # Return: [atom, ...]
     def disjunction(self, elements):
-        return Disjunction(list(elements))
+        disjuncts = []
+
+        for element in elements:
+            if (isinstance(element, list)):
+                for subelement in element:
+                    disjuncts.append(subelement)
+            else:
+                disjuncts.append(element)
+
+        return disjuncts
+
+    # Arithmetic
+
+    # TODO(eriq): Fails with constants. Move constands to RHS and atoms to LHS.
+    def linear_relation(self, elements):
+        # Move all atoms to the LHS and constants to the RHS (constant).
+
+        lhs = _make_list(elements[0])
+        rhs = _make_list(elements[2])
+
+        components = []
+        operator = str(elements[1])
+        constant = 0.0
+
+        for component in lhs:
+            if (isinstance(component, float) or isinstance(component, lark.lexer.Token)):
+                constant -= float(str(component))
+            else:
+                components.append(component)
+
+        for component in rhs:
+            if (isinstance(component, float) or isinstance(component, lark.lexer.Token)):
+                constant += float(str(component))
+            else:
+                components.append(component.flip())
+
+        for component in components:
+            component.logical = False
+
+        return LinearRelation(operator, constant, components)
+
+    def linear_combination(self, elements):
+        operation = str(elements[1])
+
+        lhs = _make_list(elements[0])
+        rhs = _make_list(elements[2])
+
+        if (operation == '-'):
+            rhs = [component.flip() for component in rhs]
+
+        components = lhs + rhs
+
+        for component in components:
+            component.logical = False
+
+        return components
+
+    # Atoms
 
     def atom(self, elements):
-        return Atom({
-            KEY_NEGATED: False,
-            KEY_RELATION: str(elements[0]),
-            KEY_ARGUMENTS: tuple(map(str, elements[1:])),
-        })
+        return Atom(str(elements[0]), tuple(map(str, elements[1:])))
+
+    def atom_value(self, elements):
+        if (isinstance(elements[0], Atom)):
+            return elements[0]
+
+        # A numeric token.
+        return float(str(elements[0]))
+
+    def term_operation(self, elements):
+        return TermOperation(str(elements[1]), (str(elements[0]), str(elements[2])))
 
     def negation(self, elements):
         atom = elements[1]
-        atom[KEY_NEGATED] = True
-        return atom
+        return atom.flip()
+
+    def term(self, elements):
+        if (elements[0].type == 'IDENTIFIER'):
+            return Variable(str(elements[0]))
+
+        return Constant(str(elements[0]))
 
 def parse(rule):
     parser = lark.Lark(GRAMMAR, start = 'rule', parser = 'lalr')
@@ -145,6 +296,7 @@ def parse(rule):
         raise ex
 
     cleanAST = CleanTree().transform(ast)
+
     return cleanAST
 
 def main(rule):
