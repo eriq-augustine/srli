@@ -1,6 +1,7 @@
 import enum
 
 class Engine(enum.Enum):
+    Logic_Weighted_Discrete = 'Logic_Weighted_Discrete'
     MLN_Native = 'MLN_Native'
     MLN_PySAT = 'MLN_PySAT'
     ProbLog = 'ProbLog'
@@ -8,7 +9,9 @@ class Engine(enum.Enum):
     Tuffy = 'Tuffy'
 
 def load(engine_type):
-    if (engine_type == Engine.MLN_Native):
+    if (engine_type == Engine.Logic_Weighted_Discrete):
+        return _load_logic_weighted_discrete()
+    elif (engine_type == Engine.MLN_Native):
         return _load_mln_native()
     elif (engine_type == Engine.MLN_PySAT):
         return _load_mln_pysat()
@@ -20,6 +23,10 @@ def load(engine_type):
         return _load_tuffy()
 
     raise ValueError("Unknown engine type: '%s'." % (engine_type))
+
+def _load_logic_weighted_discrete():
+    import srli.engine.logic.dws
+    return srli.engine.logic.dws.DiscreteWeightedSolver
 
 def _load_mln_native():
     import srli.engine.mln.native

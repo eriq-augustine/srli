@@ -36,7 +36,10 @@ class Relation(object):
                     self._label_indexes[i] += arity
 
         def is_hard_functional(self):
-            return (self.comparison == self.SumConstraintComparison.EQ) and math.isclose(1.0, self.constant) and (self.weight is None)
+            return self.is_functional() and (self.weight is None)
+
+        def is_functional(self):
+            return (self.comparison == self.SumConstraintComparison.EQ) and math.isclose(1.0, self.constant)
 
         def to_dict(self):
             return {

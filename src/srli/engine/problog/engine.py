@@ -18,15 +18,18 @@ class ProbLog(srli.engine.base.BaseEngine):
     def __init__(self, relations, rules, **kwargs):
         super().__init__(relations, rules, **kwargs)
 
+    def learn(self, **kwargs):
+        # TODO(eriq): No ProbLog learning is implemented yet.
+        return self
+
     def solve(self, **kwargs):
         program = []
 
         self._create_rules(program)
+
         self._add_observed_data(program)
         self._add_unobserved_data(program)
         results = self._eval("\n".join(program))
-
-        # print("\n".join(program))
 
         return results
 
@@ -128,7 +131,7 @@ class ProbLog(srli.engine.base.BaseEngine):
 
             unobserved_atoms = 0
             for atom in ast.get_atoms():
-                if (atom['relation_name'] in unobserved_relation_names):
+                if (atom.relation_name in unobserved_relation_names):
                     unobserved_atoms += 1
 
             if (unobserved_atoms <= 1):
@@ -172,8 +175,8 @@ class ProbLog(srli.engine.base.BaseEngine):
         rule_strings = []
         ast = srli.parser.parse(self._rules[rule_index].text())
 
-        if (not isinstance(ast, srli.parser.Implication)):
-            raise ValueError("Expected rule to be implication, got: '%s'." % (self._rules[rule_index].text()))
+        if (not isinstance(ast, srli.parser.DNF)):
+            raise ValueError("Expected rule to be a DNF, got: '%s'." % (self._rules[rule_index].text()))
 
         head_relations = set([atom['relation_name'] for atom in ast[1].get_atoms()])
         body_relations = set([atom['relation_name'] for atom in ast[0].get_atoms()])

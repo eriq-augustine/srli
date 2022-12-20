@@ -98,6 +98,9 @@ class DNF(object):
             else:
                 raise ValueError("Unknown DNF component type (%s): %s." % (type(component), component))
 
+    def get_atoms(self):
+        return self.atoms
+
     def __repr__(self):
         return "%s :: {%s}" % (' | '.join(map(str, self.atoms)), ', '.join(map(str, self.term_operations)))
 
@@ -120,12 +123,16 @@ class LinearRelation(object):
             else:
                 raise ValueError("Unknown LinearRelation component type (%s): %s." % (type(component), component))
 
+    def get_atoms(self):
+        return self.atoms
+
     def __repr__(self):
         return "%s %s %f :: {%s}" % (' + '.join(map(str, self.atoms)), self.operator, self.constant, ', '.join(map(str, self.term_operations)))
 
 class Atom(object):
-    def __init__(self, relation, arguments, modifier = 1, logical = True):
-        self.relation = relation
+    def __init__(self, relation_name, arguments, modifier = 1, logical = True):
+        self.relation_name = relation_name
+        self.relation = None
         self.arguments = arguments
         self.modifier = modifier
         self.logical = logical
@@ -141,7 +148,7 @@ class Atom(object):
         elif ((not self.logical) and (self.modifier != 1)):
             modifier = str(self.modifier) + ' * '
 
-        return "%s%s(%s)" % (modifier, self.relation, ', '.join(self.arguments))
+        return "%s%s(%s)" % (modifier, self.relation_name, ', '.join(self.arguments))
 
 class TermOperation(object):
     def __init__(self, operator, arguments):
