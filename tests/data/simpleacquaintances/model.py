@@ -59,8 +59,5 @@ class SimpleAcquaintancesModel(tests.data.base.TestModel):
         return {
             'Knows': {
                 'size': 118,
-                'min_metrics': {
-                    'f1': 0.35,
-                }
             }
         }

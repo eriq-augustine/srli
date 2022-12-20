@@ -6,6 +6,8 @@ class Engine(enum.Enum):
     MLN_PySAT = 'MLN_PySAT'
     ProbLog = 'ProbLog'
     PSL = 'PSL'
+    Random_Continuous = 'Random_Continuous'
+    Random_Discrete = 'Random_Discrete'
     Tuffy = 'Tuffy'
 
 def load(engine_type):
@@ -19,6 +21,10 @@ def load(engine_type):
         return _load_problog()
     elif (engine_type == Engine.PSL):
         return _load_psl()
+    elif (engine_type == Engine.Random_Continuous):
+        return _load_random_continuous()
+    elif (engine_type == Engine.Random_Discrete):
+        return _load_random_discrete()
     elif (engine_type == Engine.Tuffy):
         return _load_tuffy()
 
@@ -43,6 +49,14 @@ def _load_problog():
 def _load_psl():
     import srli.engine.psl.engine
     return srli.engine.psl.engine.PSL
+
+def _load_random_continuous():
+    import srli.engine.random
+    return srli.engine.random.RandomContinuousEngine
+
+def _load_random_discrete():
+    import srli.engine.random
+    return srli.engine.random.RandomDiscreteEngine
 
 def _load_tuffy():
     import srli.engine.tuffy.docker
