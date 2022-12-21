@@ -1,3 +1,5 @@
+import math
+
 import problog
 
 import srli.engine.base
@@ -231,7 +233,35 @@ class BaseGroundProbLog(srli.engine.base.BaseEngine):
             self.operator = operator
             self.weight = weight
 
+            # Currently only binary equality is accepted (and even that is a pretty approximate representation).
+            if ((len(self.atom_ids) == 2) and (operator == '=') and math.isclose(constant, 0.0) and math.isclose(self.coefficients[0], -self.coefficients[1])):
+                return
+
             raise NotImplementedError("Arithmetic Rules")
+
+        # TODO(eriq): Weight is not included.
+        def to_problog(self, atoms, queries, rng):
+            # Currently, only binary equality is supported.
+            if (len(self.atom_ids) != 2):
+                raise NotImplementedError("Only binary equality is supported.")
+
+            # Write two rules, one with each atom in the head.
+            rules = []
+
+            for head_index in range(len(self.atom_ids)):
+                head_atom = atoms[self.atom_ids[head_index]]
+                body_atom = atoms[self.atom_ids[(head_index + 1) % len(self.atom_ids)]]
+
+                rules.append("1.0 :: %s :- %s ." % (head_atom.to_problog(), body_atom.to_problog()))
+
+            return ' '.join(rules)
+
+        def __repr__(self):
+            operands = []
+            for i in range(len(self.atom_ids)):
+                operands.append("%f * <%d>" % (self.coefficients[i], self.atom_ids[i]))
+
+            return "%s %s %f" % (' + '.join(operands), self.operator, self.constant)
 
     def _make_rule(self, ground_info):
         weight = ground_info['weight']

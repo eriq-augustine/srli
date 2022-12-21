@@ -9,20 +9,33 @@ class NonCollectiveProbLog(srli.engine.problog.base.BaseGroundProbLog):
     DEFAULT_MAX_ITERATIONS = 10
     DEFAULT_MAX_GROUND_RULES = 50
 
+    # TODO(eriq): Stop conditions need more work.
+    DEFAULT_STOP_MOVEMENT = 0.05
+
     def __init__(self, relations, rules,
             max_iterations = DEFAULT_MAX_ITERATIONS, max_ground_rules = DEFAULT_MAX_GROUND_RULES,
+            stop_movement = DEFAULT_STOP_MOVEMENT,
             **kwargs):
         super().__init__(relations, rules, **kwargs)
 
         self._max_iterations = max_iterations
         self._max_ground_rules = max_ground_rules
+        self._stop_movement = stop_movement
 
     def solve(self, **kwargs):
         atoms, ground_rules, atom_uses, sum_constraints = self._prep()
 
         for iteration in range(1, self._max_iterations + 1):
             movement = self._iteration(atoms, ground_rules, atom_uses, sum_constraints)
+
+            # Normalize movement by the number of RVAs.
+            movement /= float(len(atom_uses))
+
             print("Iteration: %d, Movement: %f" % (iteration, movement))
+
+            if ((iteration > 1) and (movement < self._stop_movement)):
+                print("Stopping Early -- Iteration: %d, Movement: %f" % (iteration, movement))
+                break
 
         return self._create_results(atoms)
 
