@@ -229,7 +229,6 @@ class DiscreteWeightedSolver(srli.engine.base.BaseEngine):
                     atom_uses[atom_id] = []
                 atom_uses[atom_id].append(ground_rule_index)
 
-        # TODO(eriq): Observations in sum constraints should be handled here.
         # {(relation, args...): [atom_id, ...], ...}
         sum_constraints = {}
 
@@ -313,7 +312,6 @@ class DiscreteWeightedSolver(srli.engine.base.BaseEngine):
 
         return DiscreteWeightedSolver._ArithmeticRule(ground_info['atoms'], ground_info['coefficients'], ground_info['constant'], ground_info['operator'], weight)
 
-    # Random Variable Atom
     class _Atom(object):
         def __init__(self, ground_info, relation_map, rng):
             self.relation = relation_map[ground_info['predicate'].upper()]

@@ -5,6 +5,7 @@ class Engine(enum.Enum):
     MLN_Native = 'MLN_Native'
     MLN_PySAT = 'MLN_PySAT'
     ProbLog = 'ProbLog'
+    ProbLog_NonCollective = 'ProbLog_NonCollective'
     PSL = 'PSL'
     Random_Continuous = 'Random_Continuous'
     Random_Discrete = 'Random_Discrete'
@@ -19,6 +20,8 @@ def load(engine_type):
         return _load_mln_pysat()
     elif (engine_type == Engine.ProbLog):
         return _load_problog()
+    elif (engine_type == Engine.ProbLog_NonCollective):
+        return _load_problog_noncollective()
     elif (engine_type == Engine.PSL):
         return _load_psl()
     elif (engine_type == Engine.Random_Continuous):
@@ -45,6 +48,10 @@ def _load_mln_pysat():
 def _load_problog():
     import srli.engine.problog.engine
     return srli.engine.problog.engine.ProbLog
+
+def _load_problog_noncollective():
+    import srli.engine.problog.noncollective
+    return srli.engine.problog.noncollective.NonCollectiveProbLog
 
 def _load_psl():
     import srli.engine.psl.engine
