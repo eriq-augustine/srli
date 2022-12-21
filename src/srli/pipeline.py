@@ -21,9 +21,10 @@ class Pipeline(object):
         self._options = options
         self._rules = rules
         self._relations = relations
+        self._evaluations = evaluations
+
         self._learn_data = learn_data
         self._infer_data = infer_data
-        self._evaluations = evaluations
 
     def run(self, engine_type, additional_options = {}):
         options = dict(self._options)
@@ -44,8 +45,8 @@ class Pipeline(object):
             'options': self._options,
             'rules': [rule.to_dict() for rule in self._rules],
             'relations': [relation.to_dict() for relation in self._relations],
-            'learn_data': {str(relation) : {str(data_type) : paths for (data_type, paths) in data_spec.items()} for (relation, data_spec) in self._learn_data.items()},
-            'infer_data': {str(relation) : {str(data_type) : paths for (data_type, paths) in data_spec.items()} for (relation, data_spec) in self._infer_data.items()},
+            'learn_data': {str(relation) : {str(data_type) : data_sources for (data_type, data_sources) in data_spec.items()} for (relation, data_spec) in self._learn_data.items()},
+            'infer_data': {str(relation) : {str(data_type) : data_sources for (data_type, data_sources) in data_spec.items()} for (relation, data_spec) in self._infer_data.items()},
             'evaluations': [evaluation.to_dict() for evaluation in self._evaluations],
         }, indent = 4)
 
@@ -56,9 +57,11 @@ class Pipeline(object):
             relation.clear_data()
 
         for (relation, data) in self._learn_data.items():
-            for (data_type, paths) in data.items():
-                for path in paths:
+            for (data_type, data_sources) in data.items():
+                for path in data_sources['paths']:
                     relation.add_data_file(path, data_type = data_type)
+
+                relation.add_data(data = data_sources['points'], data_type = data_type)
 
         print("%d -- Starting learning engine." % (int(time.time())))
 
@@ -71,9 +74,11 @@ class Pipeline(object):
             relation.clear_data()
 
         for (relation, data) in self._infer_data.items():
-            for (data_type, paths) in data.items():
-                for path in paths:
+            for (data_type, data_sources) in data.items():
+                for path in data_sources['paths']:
                     relation.add_data_file(path, data_type = data_type)
+
+                relation.add_data(data = data_sources['points'], data_type = data_type)
 
         print("%d -- Starting inference engine." % (int(time.time())))
 
@@ -273,33 +278,40 @@ class Pipeline(object):
         if (isinstance(data_config, list)):
             data_config = {'all': data_config}
 
-        for (partition, raw_paths) in data_config.items():
+        for (partition, raw_sources) in data_config.items():
             paths = []
-            for path in raw_paths:
-                if (not isinstance(path, str)):
-                    raise ValueError('Only paths currently allowed as data.')
+            points = []
 
-                if (not os.path.isabs(path)):
-                    path = os.path.join(base_path, path)
+            for source in raw_sources:
+                if (isinstance(source, str)):
+                    if (not os.path.isabs(source)):
+                        source = os.path.join(base_path, source)
+                    paths.append(os.path.normpath(source))
+                elif (isinstance(source, list)):
+                    points.append(source)
+                else:
+                    raise ValueError("Unknown type (%s) for data source: '%s'." % (type(source), source))
 
-                paths.append(os.path.normpath(path))
-
-            if (partition == 'learn'):
-                Pipeline._add_data_spec(learn_data, data_type, paths)
-            elif (partition == 'infer'):
-                Pipeline._add_data_spec(infer_data, data_type, paths)
-            elif (partition == 'all'):
-                Pipeline._add_data_spec(learn_data, data_type, paths)
-                Pipeline._add_data_spec(infer_data, data_type, paths)
-            else:
-                raise ValueError("Unknown data phase: '%s'." % (partition))
+            for (key, sources) in [('paths', paths), ('points', points)]:
+                if (partition == 'learn'):
+                    Pipeline._add_data_spec(learn_data, data_type, sources, key)
+                elif (partition == 'infer'):
+                    Pipeline._add_data_spec(infer_data, data_type, sources, key)
+                elif (partition == 'all'):
+                    Pipeline._add_data_spec(learn_data, data_type, sources, key)
+                    Pipeline._add_data_spec(infer_data, data_type, sources, key)
+                else:
+                    raise ValueError("Unknown data phase: '%s'." % (partition))
 
     @staticmethod
-    def _add_data_spec(data, data_type, new_list):
-        if (data_type not in data):
-            data[data_type] = []
+    def _add_data_spec(data, data_type, new_list, key):
+        if (key not in ['paths', 'points']):
+            raise ValueError("Unknown data key ('%s')." % (key))
 
-        data[data_type] += new_list
+        if (data_type not in data):
+            data[data_type] = {'paths': [], 'points': []}
+
+        data[data_type][key] += new_list
 
     @staticmethod
     def _parse_evaluations(eval_configs, relation):
