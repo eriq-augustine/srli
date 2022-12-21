@@ -297,10 +297,17 @@ class DiscreteWeightedSolver(srli.engine.base.BaseEngine):
             self.operator = operator
             self.weight = weight
 
+            # Currently only binary equality is accepted (and even that is a pretty approximate representation).
+            if ((len(self.atom_ids) == 2) and (operator == '=') and math.isclose(constant, 0.0) and math.isclose(self.coefficients[0], -self.coefficients[1])):
+                return
+
             raise NotImplementedError("Arithmetic Rules")
 
         def loss(self, atoms):
-            return 0.0
+            if (atoms[self.atom_ids[0]] == atoms[self.atom_ids[1]]):
+                return 0.0
+
+            return self.weight
 
     def _make_rule(self, ground_info):
         weight = ground_info['weight']
