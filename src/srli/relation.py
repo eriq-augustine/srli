@@ -166,6 +166,9 @@ class Relation(object):
     def add_data_file(self, path, data_type = DataType.OBSERVED, delimiter = "\t", **csv_args):
         data_type = Relation.DataType(data_type)
 
+        if ('quoting' not in csv_args):
+            csv_args['quoting'] = csv.QUOTE_NONE
+
         count = 0
         with open(path, 'r') as file:
             for row in csv.reader(file, delimiter = delimiter, **csv_args):
