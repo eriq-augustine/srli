@@ -200,9 +200,15 @@ class Pipeline(object):
 
         label_indexes = []
         split_args = [arg.strip() for arg in raw_args.split(',')]
+        has_summation = False
+
         for i in range(len(split_args)):
             if (split_args[i].startswith('+')):
                 label_indexes.append(i)
+                has_summation = True
+
+        if (not has_summation):
+            return False
 
         sum_constraint = srli.relation.Relation.SumConstraint(label_indexes = label_indexes,
                 comparison = comparison, constant = constant, weight = weight)
