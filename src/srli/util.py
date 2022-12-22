@@ -19,11 +19,30 @@ def get_eval_values(relation, results, discretize = False, truth_threshold = DEF
 
     predicted = list(sorted([list(map(str, row)) for row in results]))
 
-    assert len(expected) == len(predicted), ("%d vs %d" % (len(expected), len(predicted)))
+    if (len(expected) > len(predicted)):
+        raise ValueError("Expecting (%d) more values than actually predicted (%d)." % (len(expected), len(predicted)))
 
-    # Once sorted, just get the values.
-    expected = [float(row[-1]) for row in expected]
-    predicted = [float(row[-1]) for row in predicted]
+    # If the sizes don't match, then that means there may be latent variables.
+    if (len(expected) < len(predicted)):
+        new_expected = []
+        new_predicted = []
+
+        expected_map = {tuple(row[0:-1]) : float(row[-1]) for row in expected}
+        predicted_map = {tuple(row[0:-1]) : float(row[-1]) for row in predicted}
+
+        for key in expected_map:
+            if (key not in predicted_map):
+                raise ValueError("Did not find predicted result for expected atom: %s(%s)." % (relation.name(), ', '.join(map(str, key))))
+
+            new_expected.append(expected_map[key])
+            new_predicted.append(predicted_map[key])
+
+        expected = new_expected
+        predicted = new_predicted
+    else:
+        # Once sorted, just get the values.
+        expected = [float(row[-1]) for row in expected]
+        predicted = [float(row[-1]) for row in predicted]
 
     if (discretize):
         expected = [int(value >= truth_threshold) for value in expected]
