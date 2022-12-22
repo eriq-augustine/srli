@@ -19,7 +19,7 @@ class PSL(srli.engine.base.BaseEngine):
     }
 
     def __init__(self, relations, rules, **kwargs):
-        super().__init__(relations, rules, **kwargs)
+        super().__init__(relations, rules, noramlize_weights = False, **kwargs)
 
     def solve(self, additional_config = {}, transform_config = None, **kwargs):
         model = self._prep_model(additional_config = additional_config)
