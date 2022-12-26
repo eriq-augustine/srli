@@ -1,3 +1,4 @@
+import math
 import os
 import re
 import shutil
@@ -8,6 +9,7 @@ import uuid
 import docker
 
 import srli.engine.base
+import srli.parser
 
 EVIDENCE_FILENAME = 'evidence.db'
 PROGRAM_FILENAME = 'prog.mln'
@@ -22,15 +24,21 @@ LIB_DIR = os.path.join(THIS_DIR, 'lib')
 DOCKER_TAG = 'srli.tuffy'
 DOCKER_TUFFY_IO_DIR = '/tuffy/io'
 
+# Tuffy variables must start with a lower case letter.
+DUMMY_VARIABLE_PREFIX = 'var_srli__'
+# Tuffy constants must be only integer or start with an upper case letter.
+DUMMY_CONSTANT_PREFIX = 'CON_srli__'
+
 class Tuffy(srli.engine.base.BaseEngine):
     """
     Run Tuffy in a Docker container.
     """
 
-    def __init__(self, relations, rules, cleanup_files = True, **kwargs):
+    def __init__(self, relations, rules, cleanup_files = True, include_priors = True, **kwargs):
         super().__init__(relations, rules, **kwargs)
 
         self._cleanup_files = cleanup_files
+        self._include_priors = include_priors
 
         missing_types = False
         for relation in self._relations:
@@ -51,6 +59,7 @@ class Tuffy(srli.engine.base.BaseEngine):
 
         try:
             self._run_tuffy(temp_dir, additional_args = args)
+            self._check_output(output_path)
             weights = self._parse_weights(output_path)
         finally:
             self._cleanup(temp_dir)
@@ -65,6 +74,7 @@ class Tuffy(srli.engine.base.BaseEngine):
 
         try:
             self._run_tuffy(temp_dir)
+            self._check_output(output_path)
             raw_results = self._read_results(output_path)
         finally:
             self._cleanup(temp_dir)
@@ -74,19 +84,26 @@ class Tuffy(srli.engine.base.BaseEngine):
             if (not relation.has_unobserved_data()):
                 continue
 
-            results[relation] = []
+            values = []
 
             for row in relation.get_unobserved_data():
-                key = tuple(row[0:relation.arity()])
+                key = self._convert_source_atom(relation, row)
 
-                # The relation may not be in the results if Tuffy outputs no true values,
-                # and the key may not be in the results if its specific value is false.
-                if ((relation not in raw_results) or (key not in raw_results[relation])):
-                    results[relation].append(list(key) + [0.0])
+                if (key in raw_results):
+                    value = raw_results[key]
                 else:
-                    results[relation].append(list(key) + [raw_results[relation][key]])
+                    # Tuffy does not output zeros.
+                    value = 0.0
+
+                values.append(list(row) + [value])
+
+            results[relation] = values
 
         return results
+
+    def _check_output(self, output_path):
+        if (not os.path.isfile(output_path)):
+            raise RuntimeError("Tuffy did not complete successfully.")
 
     def _prep_run(self):
         temp_dir = tempfile.mkdtemp(prefix = TEMP_DIR_PREFIX)
@@ -173,8 +190,8 @@ class Tuffy(srli.engine.base.BaseEngine):
         # Sort the weights according to the index output by Tuffy, which should match the order they were inserted.
         return [weight for (index, weight) in sorted(ordered_weights)]
 
-    def _read_results(self, path, has_value = False):
-        results = {}
+    def _read_results(self, path):
+        raw_results = {}
 
         with open(path, 'r') as file:
             for line in file:
@@ -183,23 +200,12 @@ class Tuffy(srli.engine.base.BaseEngine):
                     continue
 
                 parts = line.split("\t")
-                if (has_value):
-                    atom = parts[0]
-                    value = float(parts[1])
-                else:
-                    atom = parts[0]
-                    value = 1.0
+                atom = parts[0]
+                value = 1.0
 
-                (predicate, _, arguments) = atom.partition('(')
-                relation = self._find_relation(predicate)
-                arguments = tuple(arguments.rstrip(')').replace('"', '').split(', '))
+                raw_results[atom] = value
 
-                if (relation not in results):
-                    results[relation] = {}
-
-                results[relation][arguments] = value
-
-        return results
+        return raw_results
 
     def _write_program(self, path):
         program = []
@@ -208,7 +214,7 @@ class Tuffy(srli.engine.base.BaseEngine):
         for relation in self._relations:
             has_prior |= relation.has_negative_prior_weight()
 
-            arguments = list(map(str, relation.variable_types()))
+            arguments = [str(variable_type).lower() for variable_type in relation.variable_types()]
 
             # Check for a hard summation constraint.
             if (relation.has_sum_constraint() and relation.sum_constraint().is_hard_functional()):
@@ -223,30 +229,19 @@ class Tuffy(srli.engine.base.BaseEngine):
 
         program.append('')
 
-        for i in range(len(self._rules)):
-            rule = self._rules[i].text()
-            rule = rule.replace('&', ',')
-            rule = rule.replace('->', '=>')
-            rule = rule.replace('>>', '=>')
-            rule = rule.replace(' = ', ' => ')
-            # Constants can use double quotes.
-            rule = rule.replace('\'', '"')
-            rule = re.sub(r',\s*\(\w+\s*!=\s*\w+\)', '', rule)
+        for rule in self._rules:
+            rule_texts = self._convert_rule(rule)
+            if (rule_texts is None):
+                continue
 
-            # TODO(eriq): Rule variables must be all lower case.
-            # HACK(eriq): This method is very quick and dirty.
-            rule = rule.lower()
-
-            for relation in self._relations:
-                rule = re.sub(r'\b' + relation.name().lower() + r'\b', relation.name().upper(), rule)
-
-            if (self._rules[i].is_weighted()):
-                program.append("%f %s" % (self._rules[i].weight(), rule))
-            else:
-                program.append("%s ." % (rule))
+            for rule_text in rule_texts:
+                if (rule.is_weighted()):
+                    program.append("%f %s" % (rule.weight(), rule_text))
+                else:
+                    program.append("%s ." % (rule_text))
 
         # Write any prior rules.
-        if (has_prior):
+        if (self._include_priors and has_prior):
             program.append('')
             for relation in self._relations:
                 if (relation.has_negative_prior_weight()):
@@ -254,6 +249,71 @@ class Tuffy(srli.engine.base.BaseEngine):
                     program.append("%f !%s(%s)" % (relation.get_negative_prior_weight(), relation.name().upper(), arguments))
 
         self._write_file(path, program)
+
+    def _convert_rule(self, rule):
+        parsed_rule = srli.parser.parse(rule.text())
+
+        if (isinstance(parsed_rule, srli.parser.DNF)):
+            atoms = [self._convert_parser_atom(atom) for atom in parsed_rule.atoms]
+            return [' v '.join(atoms)]
+
+        if (not isinstance(parsed_rule, srli.parser.LinearRelation)):
+            raise RuntimeError("Unknown rule type: '%s' (%s)." % (rule, type(parsed_rule)))
+
+        # Only specific types of arithmetic rules are allowed.
+
+        if ((parsed_rule.operator != '=') or (not math.isclose(parsed_rule.constant, 0.0)) or
+                (len(parsed_rule.atoms) != 2) or (parsed_rule.atoms[0].modifier != -parsed_rule.atoms[1].modifier)):
+            raise RuntimeError("Linear rule not supported in Tuffy: '%s'." % (rule))
+
+        # Binary equality.
+
+        for atom in parsed_rule.atoms:
+            atom.modifier = 1
+
+        atoms = [self._convert_parser_atom(atom) for atom in parsed_rule.atoms]
+
+        return [
+            "%s => %s" % (atoms[0], atoms[1]),
+            "%s => %s" % (atoms[1], atoms[0]),
+        ]
+
+
+    # Convert an atom that comes from srli.parser.
+    def _convert_parser_atom(self, parser_atom):
+        relation_name = parser_atom.relation_name.upper()
+
+        modifier = ''
+        if (parser_atom.modifier < 0):
+            modifier = '!'
+
+        arguments = []
+        for raw_arg in parser_atom.arguments:
+            if (isinstance(raw_arg, srli.parser.Variable)):
+                arguments.append(self._convert_variable(str(raw_arg)))
+            elif (isinstance(raw_arg, srli.parser.Constant)):
+                arguments.append(self._convert_constant(str(raw_arg)))
+            else:
+                raise RuntimeError("Unknown atom argument: '%s' (%s)." % (raw_arg, type(raw_arg)))
+
+        return "%s%s(%s)" % (modifier, relation_name, ', '.join(arguments))
+
+    # Convert an atom that comes from a relations's data (i.e. a row).
+    def _convert_source_atom(self, relation, source_atom):
+        relation_name = relation.name().upper()
+        arguments = [self._convert_constant(str(arg)) for arg in source_atom[0:relation.arity()]]
+
+        return "%s(%s)" % (relation_name, ', '.join(arguments))
+
+    # TODO(eriq): Internal Quotes?
+    def _convert_constant(self, text):
+        # Tuffy args cannot have spaces.
+        text = text.replace(' ', '_')
+
+        return '"' + DUMMY_CONSTANT_PREFIX + text + '"'
+
+    def _convert_variable(self, text):
+        return DUMMY_VARIABLE_PREFIX + text
 
     def _write_evidence(self, path):
         evidence = []
@@ -263,10 +323,8 @@ class Tuffy(srli.engine.base.BaseEngine):
                 continue
 
             for row in relation.get_observed_data():
-                # Tuffy args cannot have spaces.
-                row = list(map(lambda argument: argument.replace(' ', '_'), row))
-
-                line = "%s(%s)" % (relation.name().upper(), ', '.join(map(str, row[0:relation.arity()])))
+                args = list(map(lambda argument: self._convert_constant(argument), row[0:relation.arity()]))
+                line = "%s(%s)" % (relation.name().upper(), ', '.join(map(str, args)))
 
                 if (len(row) > relation.arity()):
                     line = "%f %s" % (float(row[-1]), line)
@@ -283,10 +341,8 @@ class Tuffy(srli.engine.base.BaseEngine):
                 continue
 
             for row in relation.get_unobserved_data():
-                # Tuffy args cannot have spaces.
-                row = list(map(lambda argument: argument.replace(' ', '_'), row))
-
-                line = "%s(%s)" % (relation.name().upper(), ', '.join(map(str, row[0:relation.arity()])))
+                args = list(map(lambda argument: self._convert_constant(argument), row[0:relation.arity()]))
+                line = "%s(%s)" % (relation.name().upper(), ', '.join(map(str, args)))
                 query.append(line)
 
         self._write_file(path, query)
@@ -330,5 +386,5 @@ class Tuffy(srli.engine.base.BaseEngine):
             raise ex
         finally:
             if (container is not None):
-                container.wait()
+                container.stop()
                 container = None

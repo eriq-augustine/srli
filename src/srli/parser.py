@@ -142,11 +142,11 @@ class Atom(object):
         return self
 
     def __repr__(self):
-        modifier = ''
+        text_modifier = ''
         if (self.logical and (self.modifier < 0)):
-            modifier = '!'
+            text_modifier = '!'
         elif ((not self.logical) and (self.modifier != 1)):
-            modifier = str(self.modifier) + ' * '
+            text_modifier = str(self.modifier) + ' * '
 
         return "%s%s(%s)" % (modifier, self.relation_name, ', '.join(self.arguments))
 
@@ -263,7 +263,7 @@ class CleanTree(lark.Transformer):
     # Atoms
 
     def atom(self, elements):
-        return Atom(str(elements[0]), tuple(map(str, elements[1:])))
+        return Atom(str(elements[0]), tuple(elements[1:]))
 
     def atom_value(self, elements):
         if (isinstance(elements[0], Atom)):
