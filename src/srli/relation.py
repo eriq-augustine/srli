@@ -41,6 +41,9 @@ class Relation(object):
         def is_functional(self):
             return (self.comparison == self.SumConstraintComparison.EQ) and math.isclose(1.0, self.constant)
 
+        def is_partial_functional(self):
+            return (self.comparison == self.SumConstraintComparison.LTE) and math.isclose(1.0, self.constant)
+
         def to_dict(self):
             return {
                 'label_indexes': self.label_indexes,

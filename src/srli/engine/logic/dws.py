@@ -110,24 +110,30 @@ class DiscreteWeightedSolver(srli.engine.base.BaseEngine):
             if (atom.value != initial_value):
                 motion += 1
 
-        # TODO(eriq): Consider different kinds of sum constraints.
         # Consider sum constraints.
         for ((relation, args), atom_ids) in sum_constraints.items():
             best_atom_ids = None
             best_loss = None
 
+            # Only actual atoms.
+            real_atom_ids = list(atom_ids)
+
+            # For partial functional constraints, add in a -1 index that will set all atoms to false.
+            if (relation.sum_constraint().is_partial_functional()):
+                atom_ids = list(atom_ids) + [-1]
+
             for atom_id in atom_ids:
                 loss = 0.0
 
                 # What is the loss when setting this atom to True and the rest to False.
-                for other_atom_id in atom_ids:
+                for other_atom_id in real_atom_ids:
                     if (atom_id == other_atom_id):
                         atoms[atom_id].value = True
                     else:
                         atoms[other_atom_id].value = False
 
                 # Compute loss over all involved ground rules.
-                for other_atom_id in atom_ids:
+                for other_atom_id in real_atom_ids:
                     for ground_rule_index in atom_uses[other_atom_id]:
                         loss += ground_rules[ground_rule_index].loss(atoms)
 
@@ -141,7 +147,7 @@ class DiscreteWeightedSolver(srli.engine.base.BaseEngine):
                     best_atom_ids = [atom_id]
 
             best_atom_id = self._rng.choice(best_atom_ids)
-            for atom_id in atom_ids:
+            for atom_id in real_atom_ids:
                 if (atom_id == best_atom_id):
                     atoms[atom_id].value = True
                 else:
@@ -242,8 +248,8 @@ class DiscreteWeightedSolver(srli.engine.base.BaseEngine):
 
             constraint = atom.relation.sum_constraint()
 
-            if (not constraint.is_functional()):
-                raise ValueError("Cannot handle sum constraints that are not functional.")
+            if ((not constraint.is_functional()) and (not constraint.is_partial_functional())):
+                raise ValueError("Cannot handle sum constraints that are not (partial) functional.")
 
             if (atom.observed and (not atom.value)):
                 # An observed False in a constraint should just be ignored (and not added to the constrained atoms).
