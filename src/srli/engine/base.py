@@ -41,10 +41,18 @@ class BaseEngine(abc.ABC):
             if (rule.is_weighted()):
                 weight_sum += rule.weight()
 
+        for relation in self._relations:
+            if (relation.has_negative_prior_weight()):
+                weight_sum += relation.get_negative_prior_weight()
+
         if (normalize_weights and (weight_sum > (1.0 + BaseEngine.WEIGHT_SLACK))):
             for rule in rules:
                 if (rule.is_weighted()):
                     rule.set_weight(rule.weight() / weight_sum)
+
+        for relation in self._relations:
+            if (relation.has_negative_prior_weight()):
+                relation.set_negative_prior_weight(relation.get_negative_prior_weight() / weight_sum)
 
         return rules
 
