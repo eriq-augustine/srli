@@ -26,19 +26,18 @@ class Pipeline(object):
         self._learn_data = learn_data
         self._infer_data = infer_data
 
-    def run(self, engine_type, additional_options = {}):
+    def run(self, engine_type, skip_learning = False, skip_inference = False, additional_options = {}):
         options = dict(self._options)
         options.update(additional_options)
 
         engine = engine_type(self._relations, self._rules,
                 options = options, evaluations = self._evaluations)
 
-        if ((len(self._learn_data) > 0) and (self._learn_data != self._infer_data)):
+        if ((not skip_learning) and (len(self._learn_data) > 0) and (self._learn_data != self._infer_data)):
             self._learn(engine)
 
-        if (len(self._infer_data) > 0):
+        if ((not skip_inference) and (len(self._infer_data) > 0)):
             self._infer(engine)
-            pass
 
     def __repr__(self):
         return json.dumps({
@@ -359,8 +358,12 @@ def main(arguments):
     engine_type = srli.engine.load(srli.engine.Engine(arguments.engine))
 
     pipeline = Pipeline.from_psl_config(arguments.config_path)
-    print(pipeline)
-    pipeline.run(engine_type, additional_options = options)
+
+    if (arguments.print_pipeline):
+        print(pipeline)
+
+    pipeline.run(engine_type, additional_options = options,
+            skip_learning = arguments.skip_learning, skip_inference = arguments.skip_inference)
 
 def _load_args():
     parser = argparse.ArgumentParser(description = 'Run a SRLi pipeline from a PSL-style config file.')
@@ -372,12 +375,24 @@ def _load_args():
     parser.add_argument('--engine', dest = 'engine',
         action = 'store', type = str, default = srli.engine.Engine.PSL.name,
         choices = [engine_type.name for engine_type in srli.engine.Engine],
-        help = 'The engine to run the pipeline with.')
+        help = 'the engine to run the pipeline with (default: %(default)s)')
 
-    parser.add_argument('--option', dest = 'options',
+    parser.add_argument('-o', '--option', dest = 'options',
         action = 'append', type = str, nargs = 2,
         metavar=('key', 'value'),
-        help = 'Additional options to pass to the engine.')
+        help = 'additional options to pass to the engine')
+
+    parser.add_argument('--print-pipeline', dest = 'print_pipeline',
+        action = 'store_true', default = False,
+        help = 'print the SRLi pipeline before doing work (default: %(default)s)')
+
+    parser.add_argument('--skip-learning', dest = 'skip_learning',
+        action = 'store_true', default = False,
+        help = 'skip the learning phase (default: %(default)s)')
+
+    parser.add_argument('--skip-inference', dest = 'skip_inference',
+        action = 'store_true', default = False,
+        help = 'skip the inference phase (default: %(default)s)')
 
     arguments = parser.parse_args()
 
