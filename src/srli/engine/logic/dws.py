@@ -303,14 +303,26 @@ class DiscreteWeightedSolver(srli.engine.base.BaseEngine):
             self.operator = operator
             self.weight = weight
 
-            # Currently only binary equality is accepted (and even that is a pretty approximate representation).
-            if ((len(self.atom_ids) == 2) and (operator == '=') and math.isclose(constant, 0.0) and math.isclose(self.coefficients[0], -self.coefficients[1])):
-                return
-
-            raise NotImplementedError("Arithmetic Rules")
-
         def loss(self, atoms):
-            if (atoms[self.atom_ids[0]] == atoms[self.atom_ids[1]]):
+            atom_sum = 0.0
+
+            for i in range(len(self.atom_ids)):
+                atom_sum += (atoms[self.atom_ids[i]].value * self.coefficients[i])
+
+            if (self.operator == '<'):
+                satisfied = (atom_sum < self.constant)
+            elif (self.operator == '<='):
+                satisfied = (atom_sum <= self.constant)
+            elif (self.operator == '='):
+                satisfied = (math.isclose(atom_sum, self.constant))
+            elif (self.operator == '>='):
+                satisfied = (atom_sum >= self.constant)
+            elif (self.operator == '>'):
+                satisfied = (atom_sum > self.constant)
+            else:
+                raise ValueError("Unknown arithmetic relation operator: '%s'." % (self.operator))
+
+            if (satisfied):
                 return 0.0
 
             return self.weight
