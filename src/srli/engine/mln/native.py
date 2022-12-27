@@ -51,6 +51,7 @@ class NativeMLN(srli.engine.mln.base.BaseMLN):
 
         print("MLN Inference - Attempt: %d, Iteration 0, Loss: %f, Max Flips: %d." % (attempt, total_loss, max_flips))
 
+        flip = 1
         for flip in range(1, max_flips + 1):
             if (math.isclose(total_loss, 0.0)):
                 print("Full satisfaction found.")
