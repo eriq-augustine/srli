@@ -1,4 +1,6 @@
+import atexit
 import math
+import functools
 import os
 import re
 import shutil
@@ -371,6 +373,9 @@ class Tuffy(srli.engine.base.BaseEngine):
                     remove = True, network_disabled = False,
                     detach = True)
 
+            stop_container_partial = functools.partial(Tuffy._stop_container, container_id)
+            atexit.register(stop_container_partial)
+
             for line in container.logs(stream = True):
                 print(line.decode(), end = '')
             print()
@@ -385,6 +390,16 @@ class Tuffy(srli.engine.base.BaseEngine):
 
             raise ex
         finally:
-            if (container is not None):
-                container.stop()
-                container = None
+            Tuffy._stop_container(container_id)
+
+    @staticmethod
+    def _stop_container(container_id):
+        client = docker.from_env()
+
+        try:
+            container = client.containers.get(container_id)
+        except docker.errors.NotFound:
+            return
+
+        if (container.status == 'running'):
+            container.stop()
