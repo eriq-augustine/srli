@@ -28,7 +28,6 @@ class ProbLog(srli.engine.problog.base.BaseGroundProbLog):
         program.append('')
         program += self._write_queries(query_atom_ids, atoms)
 
-        # print("\n".join(program))
         self._run("\n".join(program), query_atom_ids, atoms)
 
         return self._create_results(atoms)

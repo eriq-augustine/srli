@@ -24,6 +24,8 @@ class BaseGroundProbLog(srli.engine.base.BaseEngine):
     def _run(self, text, query_atom_ids, atoms):
         program = problog.program.PrologString(text)
 
+        # print(text)
+
         raw_results = problog.get_evaluatable().create_from(program).evaluate()
         raw_results = {str(key): float(value) for (key, value) in raw_results.items()}
 
@@ -67,7 +69,7 @@ class BaseGroundProbLog(srli.engine.base.BaseEngine):
         for ground_rule_id in ground_rule_ids:
             program.append(ground_rules[ground_rule_id].to_problog(atoms, query_atom_ids, self._rng))
 
-        # Wite any annotated disjunctions.
+        # Use annotated disjunctions to represent summation constraints.
 
         # Make sure not to write atoms more than once for the same sum constraint.
         # {(sum_key, atom_id), ...}
@@ -87,7 +89,14 @@ class BaseGroundProbLog(srli.engine.base.BaseEngine):
                     key = (sum_key, sum_atom_id)
                     seen_sum_atoms.add(key)
 
-                disjunction = ["1/%d :: %s" % (len(sum_atom_ids), atoms[sum_atom_id].to_problog()) for sum_atom_id in sum_atom_ids]
+                # For full functional constraints, evenly split the probability across all the options.
+                # For partial functional constraints, add in the null option by adding one to the denominator.
+                # https://problog.readthedocs.io/en/latest/modeling_basic.html#annotated-disjunctions
+                denom = len(sum_atom_ids)
+                if (atoms[query_atom_id].relation.sum_constraint().is_partial_functional()):
+                    denom += 1
+
+                disjunction = ["1/%d :: %s" % (denom, atoms[sum_atom_id].to_problog()) for sum_atom_id in sum_atom_ids]
                 program.append("%s ." % (' ; '.join(disjunction)))
 
         return program
@@ -156,8 +165,8 @@ class BaseGroundProbLog(srli.engine.base.BaseEngine):
 
             constraint = atom.relation.sum_constraint()
 
-            if (not constraint.is_functional()):
-                raise ValueError("Cannot handle sum constraints that are not functional.")
+            if ((not constraint.is_functional()) and (not constraint.is_partial_functional())):
+                raise ValueError("Cannot handle sum constraints that are not (partial) functional.")
 
             if (atom.observed and (not atom.value)):
                 # An observed False in a constraint should just be ignored (and not added to the constrained atoms).

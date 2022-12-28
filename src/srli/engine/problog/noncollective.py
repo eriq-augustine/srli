@@ -73,8 +73,6 @@ class NonCollectiveProbLog(srli.engine.problog.base.BaseGroundProbLog):
             program.append('')
             program += self._write_queries(target_atom_ids, atoms)
 
-            # print("\n".join(program))
-
             movement += self._run("\n".join(program), target_atom_ids, atoms)
 
         return movement

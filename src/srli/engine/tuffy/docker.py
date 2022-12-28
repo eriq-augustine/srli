@@ -31,6 +31,7 @@ DUMMY_VARIABLE_PREFIX = 'var_srli__'
 # Tuffy constants must be only integer or start with an upper case letter.
 DUMMY_CONSTANT_PREFIX = 'CON_srli__'
 
+# TODO(eriq): Partial functionals are ignored.
 class Tuffy(srli.engine.base.BaseEngine):
     """
     Run Tuffy in a Docker container.
