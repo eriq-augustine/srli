@@ -288,7 +288,7 @@ class BaseGroundProbLog(srli.engine.base.BaseEngine):
                 self.value = float(rng.randint(0, 1))
 
         def to_problog(self):
-            return "%s(%s)" % (self.relation.name().lower(), ','.join(map(lambda x: str(x).lower(), self.arguments)))
+            return "%s(%s)" % (self.relation.name().lower(), ','.join(map(lambda x: '"' + str(x).lower().replace('"', '\"') + '"', self.arguments)))
 
         def __repr__(self):
             operator = '==' if self.observed else '?='
