@@ -2,7 +2,6 @@ import json
 
 DEFAULT_TRUTH_THRESHOLD = 0.5
 
-# TODO(eriq): There are some assumptions made here about the format of the data (e.g. a truth column at the end).
 
 def get_eval_values(relation, results, discretize = False, truth_threshold = DEFAULT_TRUTH_THRESHOLD):
     """
@@ -22,8 +21,9 @@ def get_eval_values(relation, results, discretize = False, truth_threshold = DEF
     if (len(expected) > len(predicted)):
         raise ValueError("Expecting (%d) more values than actually predicted (%d)." % (len(expected), len(predicted)))
 
-    # If the sizes don't match, then that means there may be latent variables.
-    if (len(expected) < len(predicted)):
+    # If the sizes don't match, then that means there may be latent or missing variables.
+    output_warning = False
+    if (len(expected) != len(predicted)):
         new_expected = []
         new_predicted = []
 
@@ -32,7 +32,11 @@ def get_eval_values(relation, results, discretize = False, truth_threshold = DEF
 
         for key in expected_map:
             if (key not in predicted_map):
-                raise ValueError("Did not find predicted result for expected atom: %s(%s)." % (relation.name(), ', '.join(map(str, key))))
+                if (not output_warning):
+                    print("WARNING: Atom(s) for the %s relation were found in truth (len: %d) that were not in the predictions (len: %d). Example: %s(%s)." % (relation.name(), len(expected), len(predicted), relation.name(), ', '.join(map(str, key))))
+                    output_warning = True
+
+                continue
 
             new_expected.append(expected_map[key])
             new_predicted.append(predicted_map[key])
