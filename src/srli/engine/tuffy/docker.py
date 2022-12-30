@@ -41,9 +41,7 @@ class Tuffy(srli.engine.base.BaseEngine):
     def __init__(self, relations, rules, cleanup_files = True, include_priors = True, **kwargs):
         super().__init__(relations, rules, **kwargs)
 
-        # TEST
-        # self._cleanup_files = cleanup_files
-        self._cleanup_files = False
+        self._cleanup_files = cleanup_files
         self._include_priors = include_priors
 
         missing_types = False
@@ -296,7 +294,7 @@ class Tuffy(srli.engine.base.BaseEngine):
             if (atom.modifier < 0):
                 prefix = '!'
 
-            return "%s%s" % (prefix, self._convert_parser_atom(atom))
+            return ["%s%s" % (prefix, self._convert_parser_atom(atom))]
 
         raise RuntimeError("This form of linear rule is not supported in Tuffy: '%s'." % (rule))
 
@@ -326,11 +324,8 @@ class Tuffy(srli.engine.base.BaseEngine):
 
         return "%s(%s)" % (relation_name, ', '.join(arguments))
 
-    # TODO(eriq): Internal Quotes?
     def _convert_constant(self, text):
-        # Tuffy args cannot have spaces.
-        text = text.replace(' ', '_')
-
+        text = text.replace('"', '\\"')
         return '"' + DUMMY_CONSTANT_PREFIX + text + '"'
 
     def _convert_variable(self, text):
