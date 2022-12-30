@@ -1,4 +1,5 @@
 import atexit
+import copy
 import math
 import functools
 import os
@@ -40,7 +41,9 @@ class Tuffy(srli.engine.base.BaseEngine):
     def __init__(self, relations, rules, cleanup_files = True, include_priors = True, **kwargs):
         super().__init__(relations, rules, **kwargs)
 
-        self._cleanup_files = cleanup_files
+        # TEST
+        # self._cleanup_files = cleanup_files
+        self._cleanup_files = False
         self._include_priors = include_priors
 
         missing_types = False
@@ -265,22 +268,37 @@ class Tuffy(srli.engine.base.BaseEngine):
 
         # Only specific types of arithmetic rules are allowed.
 
-        if ((parsed_rule.operator != '=') or (not math.isclose(parsed_rule.constant, 0.0)) or
-                (len(parsed_rule.atoms) != 2) or (parsed_rule.atoms[0].modifier != -parsed_rule.atoms[1].modifier)):
-            raise RuntimeError("Linear rule not supported in Tuffy: '%s'." % (rule))
-
         # Binary equality.
+        if ((parsed_rule.operator == '=') and (math.isclose(parsed_rule.constant, 0.0)) and
+                (len(parsed_rule.atoms) == 2) and (math.isclose(parsed_rule.atoms[0].modifier, -parsed_rule.atoms[1].modifier))):
+            atoms = []
+            for parser_atom in parsed_rule.atoms:
+                atom = copy.copy(parser_atom)
+                atom.modifier = 1
+                atoms.append(self._convert_parser_atom(atom))
 
-        for atom in parsed_rule.atoms:
-            atom.modifier = 1
+            return [
+                "%s => %s" % (atoms[0], atoms[1]),
+                "%s => %s" % (atoms[1], atoms[0]),
+            ]
 
-        atoms = [self._convert_parser_atom(atom) for atom in parsed_rule.atoms]
+        # Fixed binary value.
+        if ((parsed_rule.operator == '=') and (math.isclose(parsed_rule.constant, 0.0) or math.isclose(parsed_rule.constant, 1.0)) and
+                (len(parsed_rule.atoms) == 1)):
+            constant = 0 if (math.isclose(parsed_rule.constant, 0.0)) else 1
+            atom = copy.copy(parsed_rule.atoms[0])
 
-        return [
-            "%s => %s" % (atoms[0], atoms[1]),
-            "%s => %s" % (atoms[1], atoms[0]),
-        ]
+            if (atom.modifier < 0):
+                atom.modifier = -atom.modifier
+                constant = (constant + 1) % 2
 
+            prefix = ''
+            if (atom.modifier < 0):
+                prefix = '!'
+
+            return "%s%s" % (prefix, self._convert_parser_atom(atom))
+
+        raise RuntimeError("This form of linear rule is not supported in Tuffy: '%s'." % (rule))
 
     # Convert an atom that comes from srli.parser.
     def _convert_parser_atom(self, parser_atom):
