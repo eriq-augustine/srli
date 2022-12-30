@@ -1,9 +1,9 @@
+import math
+
 import pysat.examples.rc2
 import pysat.formula
 
 import srli.engine.mln.base
-
-import math
 
 class PySATMLN(srli.engine.mln.base.BaseMLN):
     """
@@ -76,12 +76,14 @@ class PySATMLN(srli.engine.mln.base.BaseMLN):
             # If observed, this term may be trivial.
             value = atom['value']
             if (atom['observed']):
-                if ((coefficient == 1 and math.isclose(value, 0.0)) or (coefficient == -1 and math.isclose(value, 1.0))):
+                if ((coefficient == 1 and math.isclose(value, 1.0)) or (coefficient == -1 and math.isclose(value, 0.0))):
                     return
                 continue
 
-            # Since we are swapping DNF to CNF, flip the sign on a positive coefficient.
-            if (coefficient == 1):
+            # Since we are swapping DNF to CNF, flip the sign on a negative coefficient.
+            # Note that we are both swapping from a DNF to CNF and also min loss to max sat.
+            # So, signs carry over.
+            if (coefficient == -1):
                 atom_id *= -1
 
             terms.append(atom_id)

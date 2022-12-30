@@ -1,9 +1,11 @@
 import abc
+import math
 
 import srli.engine.base
 import srli.engine.psl.engine
 import srli.rule
 
+NEGATIVE_PRIOR_RULE_INDEX = -1
 HARD_WEIGHT = 1000.0
 
 class BaseMLN(srli.engine.base.BaseEngine):
@@ -75,7 +77,7 @@ class BaseMLN(srli.engine.base.BaseEngine):
 
         return results
 
-    def _process_ground_program(self, ground_program):
+    def _process_ground_program(self, ground_program, include_priors_as_groundings = False):
         """
         Take in the raw ground rules and collapse all the observed values.
         Return a mapping of grond atoms to all involved ground rules.
@@ -93,6 +95,15 @@ class BaseMLN(srli.engine.base.BaseEngine):
         for (atom_index_str, atom_info) in ground_program['atoms'].items():
             atom_info['relation'] = relation_map[atom_info['predicate']]
             ground_atoms[int(atom_index_str)] = atom_info
+
+            if (include_priors_as_groundings):
+                # Atoms belonging to a relation that has a negative prior get added in as a simple ground rule.
+                if (atom_info['relation'].has_negative_prior_weight()):
+                    weight = atom_info['relation'].get_negative_prior_weight()
+                    if (weight is None):
+                        weight = HARD_WEIGHT
+                    ground_rules.append(GroundRule(NEGATIVE_PRIOR_RULE_INDEX, weight, [int(atom_index_str)], [-1], 0, '|'))
+
 
         for raw_ground_rule in ground_program['groundRules']:
             rule_index = raw_ground_rule['ruleIndex']
@@ -122,7 +133,8 @@ class BaseMLN(srli.engine.base.BaseEngine):
 
                     if (operator == '|'):
                         # Skip trivials.
-                        if ((coefficient == 1 and value == 0) or (coefficient == -1 and value == 1)):
+                        if ((math.isclose(coefficient, 1.0) and math.isclose(value, 1.0))
+                                or (math.isclose(coefficient, -1.0) and math.isclose(value, 0.0))):
                             skip = True
                             break
 
@@ -167,7 +179,8 @@ class GroundRule(object):
             coefficient = self.coefficients[i]
 
             # If any atom matches the coefficient, then no loss is incured.
-            if ((coefficient == -1 and truth_value == 1) or (coefficient == 1 and truth_value == 0)):
+            if ((math.isclose(coefficient, -1.0) and math.isclose(truth_value, 0.0))
+                    or (math.isclose(coefficient, 1.0) and math.isclose(truth_value, 1.0))):
                 return 0.0
 
         return 1.0
@@ -178,7 +191,7 @@ class GroundRule(object):
         for i in range(len(self.atoms)):
             sum += self.coefficients[i] * atom_values[self.atoms[i]]
 
-        if (sum == self.constant):
+        if (math.isclose(sum, self.constant)):
             return 0.0
 
         return 1.0
