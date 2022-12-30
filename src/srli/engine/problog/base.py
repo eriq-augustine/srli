@@ -22,11 +22,19 @@ class BaseGroundProbLog(srli.engine.base.BaseEngine):
         return self
 
     def _run(self, text, query_atom_ids, atoms):
-        program = problog.program.PrologString(text)
-
         # print(text)
 
-        raw_results = problog.get_evaluatable().create_from(program).evaluate()
+        try:
+            program = problog.program.PrologString(text)
+            problog_program = problog.get_evaluatable().create_from(program)
+            raw_results = problog_program.evaluate()
+        except Exception as ex:
+            print("Failed to run ProbLog program:")
+            print('---')
+            print(text)
+            print('---')
+            raise ex
+
         raw_results = {str(key): float(value) for (key, value) in raw_results.items()}
 
         movement = 0.0
@@ -235,6 +243,9 @@ class BaseGroundProbLog(srli.engine.base.BaseEngine):
 
 
     class _ArithmeticRule(object):
+        TYPE_BINARY_EQUALITY = 'binary_equality'
+        TYPE_FIXED_BINARY_VALUE = 'fixed_binary_value'
+
         def __init__(self, atom_ids, coefficients, constant, operator, weight):
             self.atom_ids = list(atom_ids)
             self.coefficients = list(coefficients)
@@ -242,26 +253,46 @@ class BaseGroundProbLog(srli.engine.base.BaseEngine):
             self.operator = operator
             self.weight = weight
 
-            # Currently only binary equality is accepted (and even that is a pretty approximate representation).
-            if ((len(self.atom_ids) == 2) and (operator == '=') and math.isclose(constant, 0.0) and math.isclose(self.coefficients[0], -self.coefficients[1])):
-                return
+            self._rule_type = None
 
-            raise NotImplementedError("Arithmetic Rules")
+            # Currently only binary equality is accepted (and even that is a pretty approximate representation).
+            if ((len(self.atom_ids) == 2) and (self.operator == '=')
+                    and math.isclose(self.constant, 0.0) and math.isclose(self.coefficients[0], -self.coefficients[1])):
+                self._rule_type = self.TYPE_BINARY_EQUALITY
+                self.constant = round(self.constant)
+            elif ((len(self.atom_ids) == 1) and (self.operator == '=')
+                    and (math.isclose(self.constant, 0.0) or math.isclose(self.constant, 1.0))
+                    and (math.isclose(self.coefficients[0], 1.0) or math.isclose(self.coefficients[0], -1.0))):
+                self._rule_type = self.TYPE_FIXED_BINARY_VALUE
+
+                self.constant = round(self.constant)
+                self.coefficients[0] = round(self.coefficients[0])
+
+                if (self.coefficients[0] == -1):
+                    self.coefficients[0] = -self.coefficients[0]
+                    self.constant = (self.constant + 1) % 2
+
+            if (self._rule_type is None):
+                raise NotImplementedError("Arithmetic Rules: [%s]" % (str(self)))
 
         # TODO(eriq): Weight is not included.
         def to_problog(self, atoms, queries, rng):
-            # Currently, only binary equality is supported.
-            if (len(self.atom_ids) != 2):
-                raise NotImplementedError("Only binary equality is supported.")
-
-            # Write two rules, one with each atom in the head.
             rules = []
 
-            for head_index in range(len(self.atom_ids)):
-                head_atom = atoms[self.atom_ids[head_index]]
-                body_atom = atoms[self.atom_ids[(head_index + 1) % len(self.atom_ids)]]
+            if (self._rule_type == self.TYPE_BINARY_EQUALITY):
+                # Write two rules, one with each atom in the head.
+                for head_index in range(len(self.atom_ids)):
+                    head_atom = atoms[self.atom_ids[head_index]]
+                    body_atom = atoms[self.atom_ids[(head_index + 1) % len(self.atom_ids)]]
 
-                rules.append("1.0 :: %s :- %s ." % (head_atom.to_problog(), body_atom.to_problog()))
+                    rules.append("1.0 :: %s :- %s ." % (head_atom.to_problog(), body_atom.to_problog()))
+            elif (self._rule_type == self.TYPE_FIXED_BINARY_VALUE):
+                prefix = ''
+                if (self.coefficients[0] < 0):
+                    prefix = '\\+'
+                rules.append("1.0 :: %s%s ." % (prefix, atoms[self.atom_ids[0]].to_problog()))
+            else:
+                raise NotImplementedError("Unknown arithmetic rules type (%s): [%s]" % (self._rule_type, str(self)))
 
             return ' '.join(rules)
 
