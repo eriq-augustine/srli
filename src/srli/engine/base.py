@@ -8,7 +8,7 @@ class BaseEngine(abc.ABC):
     WEIGHT_SLACK = 0.01
 
     def __init__(self, relations, rules, seed = None, evaluations = [], options = {},
-            noramlize_weights = True,
+            normalize_weights = True,
             **kwargs):
         self._relations = relations
         self._evaluations = evaluations
@@ -18,7 +18,7 @@ class BaseEngine(abc.ABC):
             seed = random.randint(0, 2 ** 31)
         self._rng = random.Random(seed)
 
-        self._rules = self._normalize_rules(rules, noramlize_weights)
+        self._rules = self._normalize_rules(rules, normalize_weights)
 
     def solve(self, **kwargs):
         raise NotImplementedError("BaseEngine.solve")
@@ -50,9 +50,9 @@ class BaseEngine(abc.ABC):
                 if (rule.is_weighted()):
                     rule.set_weight(rule.weight() / weight_sum)
 
-        for relation in self._relations:
-            if (relation.has_negative_prior_weight()):
-                relation.set_negative_prior_weight(relation.get_negative_prior_weight() / weight_sum)
+            for relation in self._relations:
+                if (relation.has_negative_prior_weight()):
+                    relation.set_negative_prior_weight(relation.get_negative_prior_weight() / weight_sum)
 
         return rules
 
