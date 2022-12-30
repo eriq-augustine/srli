@@ -17,7 +17,7 @@ class BaseMLN(srli.engine.base.BaseEngine):
     def solve(self, **kwargs):
         # Specifically ground with only hard constraints so arithmetic == is not turned into <= and >=.
         grounding_rules = [srli.rule.Rule(rule.text()) for rule in self._rules]
-        engine = srli.engine.psl.engine.PSL(self._relations, grounding_rules)
+        engine = srli.engine.psl.engine.PSL(self._relations, grounding_rules, options = self._options)
         ground_program = engine.ground(ignore_priors = True, ignore_sum_constraint = True)
 
         ground_rules, atoms = self._process_ground_program(ground_program)
@@ -30,7 +30,7 @@ class BaseMLN(srli.engine.base.BaseEngine):
 
     # Offload learning to PSL.
     def learn(self, **kwargs):
-        engine = srli.engine.psl.engine.PSL(self._relations, self._rules)
+        engine = srli.engine.psl.engine.PSL(self._relations, self._rules, options = self._options)
         engine.learn()
 
         return self

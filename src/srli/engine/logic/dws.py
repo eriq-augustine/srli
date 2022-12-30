@@ -29,7 +29,7 @@ class DiscreteWeightedSolver(srli.engine.base.BaseEngine):
         self._stop_motion = stop_motion
 
     def learn(self, **kwargs):
-        engine = srli.engine.psl.engine.PSL(self._relations, self._rules)
+        engine = srli.engine.psl.engine.PSL(self._relations, self._rules, options = self._options)
         engine.learn()
 
         return self
@@ -214,7 +214,7 @@ class DiscreteWeightedSolver(srli.engine.base.BaseEngine):
         return loss
 
     def _prep(self):
-        engine = srli.engine.psl.engine.PSL(self._relations, self._rules)
+        engine = srli.engine.psl.engine.PSL(self._relations, self._rules, options = self._options)
         ground_program = engine.ground(ignore_priors = True, ignore_sum_constraint = True)
 
         relation_map = {relation.name().upper() : relation for relation in self._relations}
