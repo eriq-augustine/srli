@@ -54,7 +54,8 @@ class PSL(srli.engine.base.BaseEngine):
 
         return self
 
-    def ground(self, additional_config = {}, ignore_priors = False, ignore_sum_constraint = False, transform_config = None, **kwargs):
+    def ground(self, additional_config = {}, ignore_priors = False, ignore_sum_constraint = False, get_all_atoms = False, transform_config = None, **kwargs):
+        additional_config['runtime.output.atoms.all'] = get_all_atoms
         model = self._prep_model(additional_config, ignore_priors, ignore_sum_constraint)
         return model.ground(transform_config = transform_config)
 

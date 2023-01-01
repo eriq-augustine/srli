@@ -46,6 +46,9 @@ class NonCollectiveProbLog(srli.engine.problog.base.BaseGroundProbLog):
         self._rng.shuffle(atom_ids)
 
         for atom_id in atom_uses:
+            if (atoms[atom_id].observed):
+                continue
+
             target_atom_ids = set([atom_id])
 
             # All atoms sharing a sum constraint with the main target also gets to be a target.

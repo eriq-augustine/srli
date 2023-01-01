@@ -88,6 +88,9 @@ class DiscreteWeightedSolver(srli.engine.base.BaseEngine):
         motion = 0
 
         for atom_id in atom_ids:
+            if (atoms[atom_id].observed):
+                continue
+
             atom = atoms[atom_id]
             losses = {}
 
@@ -134,6 +137,9 @@ class DiscreteWeightedSolver(srli.engine.base.BaseEngine):
 
                 # Compute loss over all involved ground rules.
                 for other_atom_id in real_atom_ids:
+                    if (other_atom_id not in atom_uses):
+                        continue
+
                     for ground_rule_index in atom_uses[other_atom_id]:
                         loss += ground_rules[ground_rule_index].loss(atoms)
 
@@ -215,7 +221,7 @@ class DiscreteWeightedSolver(srli.engine.base.BaseEngine):
 
     def _prep(self):
         engine = srli.engine.psl.engine.PSL(self._relations, self._rules, options = self._options)
-        ground_program = engine.ground(ignore_priors = True, ignore_sum_constraint = True)
+        ground_program = engine.ground(ignore_priors = True, ignore_sum_constraint = True, get_all_atoms = True)
 
         relation_map = {relation.name().upper() : relation for relation in self._relations}
 
@@ -272,8 +278,14 @@ class DiscreteWeightedSolver(srli.engine.base.BaseEngine):
             sum_constraints[key].append(atom_id)
 
         for key in solved_sum_constraints:
-            if (key in sum_constraints):
-                sum_constraints.pop(key)
+            if (key not in sum_constraints):
+                continue
+
+            # All values currently in the sum constraint for this already solved key should be set to zero.
+            atom_ids = sum_constraints.pop(key)
+            for atom_id in atom_ids:
+                atoms[atom_id].value = False
+                atoms[atom_id].observed = True
 
         return atoms, ground_rules, atom_uses, sum_constraints
 

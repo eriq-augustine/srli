@@ -140,7 +140,7 @@ class BaseGroundProbLog(srli.engine.base.BaseEngine):
 
     def _prep(self):
         engine = srli.engine.psl.engine.PSL(self._relations, self._rules, options = self._options)
-        ground_program = engine.ground(ignore_priors = True, ignore_sum_constraint = True)
+        ground_program = engine.ground(ignore_priors = True, ignore_sum_constraint = True, get_all_atoms = True)
 
         relation_map = {relation.name().upper() : relation for relation in self._relations}
 
@@ -160,10 +160,13 @@ class BaseGroundProbLog(srli.engine.base.BaseEngine):
                     atom_uses[atom_id] = []
                 atom_uses[atom_id].append(ground_rule_index)
 
+        # Check for sum constraints.
+        # Check if they can be solved now, and index the unsolved ones.
+
         # {(relation, args...): [atom_id, ...], ...}
         sum_constraints = {}
 
-        # An observation already solved these constraints.
+        # A positive observation indicates that on of these constraints is already solved.
         # {(relation, args...), ...}
         solved_sum_constraints = set()
 
@@ -172,11 +175,10 @@ class BaseGroundProbLog(srli.engine.base.BaseEngine):
                 continue
 
             constraint = atom.relation.sum_constraint()
-
             if ((not constraint.is_functional()) and (not constraint.is_partial_functional())):
                 raise ValueError("Cannot handle sum constraints that are not (partial) functional.")
 
-            if (atom.observed and (not atom.value)):
+            if (atom.observed and math.isclose(atom.value, 0.0)):
                 # An observed False in a constraint should just be ignored (and not added to the constrained atoms).
                 continue
 
@@ -187,7 +189,7 @@ class BaseGroundProbLog(srli.engine.base.BaseEngine):
             args = tuple([atom.arguments[index] for index in entity_indexes])
             key = (atom.relation, args)
 
-            if (atom.observed and atom.value):
+            if (atom.observed and math.isclose(atom.value, 1.0)):
                 # An observed True in a constraint means that we can solve the constraint now.
                 solved_sum_constraints.add(key)
                 continue
@@ -197,8 +199,14 @@ class BaseGroundProbLog(srli.engine.base.BaseEngine):
             sum_constraints[key].append(atom_id)
 
         for key in solved_sum_constraints:
-            if (key in sum_constraints):
-                sum_constraints.pop(key)
+            if (key not in sum_constraints):
+                continue
+
+            # All values currently in the sum constraint for this already solved key should be set to zero.
+            atom_ids = sum_constraints.pop(key)
+            for atom_id in atom_ids:
+                atoms[atom_id].value = 0.0
+                atoms[atom_id].observed = True
 
         for (key, atom_ids) in sum_constraints.items():
             for atom_id in atom_ids:
@@ -328,7 +336,7 @@ class BaseGroundProbLog(srli.engine.base.BaseEngine):
                 self.value = float(rng.randint(0, 1))
 
         def to_problog(self):
-            return "%s(%s)" % (self.relation.name().lower(), ','.join(map(lambda x: '"' + str(x).lower().replace('"', '\"') + '"', self.arguments)))
+            return "%s(%s)" % (self.relation.name().lower(), ','.join(map(lambda x: '"' + str(x).lower().replace('"', '\\"') + '"', self.arguments)))
 
         def __repr__(self):
             operator = '==' if self.observed else '?='
